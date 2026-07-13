@@ -1,0 +1,211 @@
+.panel-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-search {
+  padding: 8px 12px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.panel-search input {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px 6px 28px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.panel-search input:focus {
+  border-color: var(--text-3);
+}
+
+.search-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+}
+
+.file-list {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
+}
+
+.file-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  user-select: none;
+  text-align: center;
+}
+
+.file-item:hover {
+  background: var(--accent-dim);
+}
+
+.file-item:active {
+  cursor: grabbing;
+}
+
+.file-item.uploading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.file-icon {
+  width: 24px;
+  height: 24px;
+}
+.file-icon.video { color: var(--accent); }
+.file-icon.audio { color: var(--amber); }
+.file-icon.image { color: var(--green); }
+.file-icon.text { color: var(--text-2); }
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  width: 100%;
+}
+
+.file-size {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.file-categories {
+  display: flex;
+  padding: 0 12px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+  overflow-x: auto;
+}
+
+.file-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.file-cat-btn {
+  background: transparent;
+  color: var(--text-3);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.file-cat-btn:hover {
+  color: var(--text-2);
+}
+
+.file-cat-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.file-item {
+  position: relative;
+}
+
+.file-hover-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.file-item:hover .file-hover-actions {
+  opacity: 1;
+}
+
+.hover-action-btn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.hover-action-btn:hover {
+  filter: brightness(1.1);
+}
+
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* Context Menu */
+.context-menu {
+  position: fixed;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  padding: 4px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.context-menu button {
+  background: transparent;
+  color: var(--text);
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.context-menu button:hover {
+  background: var(--accent-dim);
+}
+
+.context-menu button.danger {
+  color: var(--red);
+}
+
+.context-menu button.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
