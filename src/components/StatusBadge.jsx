@@ -4,6 +4,7 @@ export default function StatusBadge({ status }) {
     paused: { color: '#f59e0b', label: 'Paused' },
     error: { color: '#ef4444', label: 'Error' },
     pending_login: { color: '#3b82f6', label: 'Connecting...' },
+    pending_oauth: { color: '#3b82f6', label: 'Connecting...' },
     verifying: { color: '#8b5cf6', label: 'Verifying...' },
   };
   const { color, label } = map[status] || map.paused;

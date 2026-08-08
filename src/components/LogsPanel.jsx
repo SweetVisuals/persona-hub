@@ -116,7 +116,7 @@ export default function LogsPanel({ onClose }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{log.personas?.name || 'System'}</span>
                   <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 500 }}>
-                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    {new Date(log.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useBusiness } from '../components/BusinessContext';
 import Card from '../components/Card';
 import { 
   ChevronRight, ChevronLeft, Sparkles, User, Target, Network, Scissors, CheckCircle, 
@@ -47,14 +48,11 @@ export default function PersonaWizard() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [step, setStep] = useState(1);
+  const { business } = useBusiness();
   
-  const [businesses, setBusinesses] = useState([]);
   const [strategies, setStrategies] = useState([]);
 
   useEffect(() => {
-    supabase.from('businesses').select('*').then(({ data }) => {
-      if (data) setBusinesses(data);
-    });
     let query = supabase.from('strategies').select('*');
     if (id) {
       query = query.or(`persona_id.is.null,persona_id.eq.${id}`);
@@ -145,7 +143,7 @@ export default function PersonaWizard() {
       
       if (id) {
         const { error: personaError } = await supabase.from('personas').update({
-          business_id: formData.business_id || businesses[0]?.id,
+          business_id: formData.business_id || business.id,
           name: formData.name,
           handle: formData.handle,
           bio: formData.bio,
@@ -163,7 +161,7 @@ export default function PersonaWizard() {
         await supabase.from('scraping_sources').delete().eq('persona_id', id);
       } else {
         const { data: personaData, error: personaError } = await supabase.from('personas').insert({
-          business_id: formData.business_id || businesses[0]?.id,
+          business_id: formData.business_id || business.id,
           user_id: user.id,
           name: formData.name,
           handle: formData.handle,
@@ -205,7 +203,7 @@ export default function PersonaWizard() {
         if (sourceError) throw sourceError;
       }
 
-      navigate('/personas');
+      navigate(`/b/${business.id}/personas`);
     } catch (err) {
       alert('Error deploying persona: ' + err.message);
       setIsDeploying(false);
@@ -248,14 +246,11 @@ export default function PersonaWizard() {
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Target Goal / Business</label>
                   <select 
-                    value={formData.business_id} 
+                    value={formData.business_id || business.id} 
                     onChange={e => setFormData({...formData, business_id: e.target.value})} 
                     style={{ width: '100%', background: 'var(--bg-2)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, WebkitAppearance: 'none' }}
                   >
-                    <option value="" disabled>Select a business to promote...</option>
-                    {businesses.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
+                    <option value={business.id}>{business.name}</option>
                   </select>
                 </div>
                 <div>
@@ -628,7 +623,7 @@ export default function PersonaWizard() {
       
       {/* Header & Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48, color: 'var(--text-3)', fontSize: 14, fontWeight: 600 }}>
-        <span onClick={() => navigate('/personas')} style={{ cursor: 'pointer', transition: 'color 0.2s' }} className="hover-text">Personas</span>
+        <span onClick={() => navigate(`/b/${business.id}/personas`)} style={{ cursor: 'pointer', transition: 'color 0.2s' }} className="hover-text">Personas</span>
         <ChevronRight size={16} />
         <span style={{ color: 'var(--text)' }}>Create New</span>
       </div>

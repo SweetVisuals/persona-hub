@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import { Globe, Key, Bell, Shield, Briefcase, Plus, Loader2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useBusiness } from '../components/BusinessContext';
 
 const Section = ({ icon: Icon, title, children }) => (
   <Card className="glass" style={{ marginBottom: 14 }}>
@@ -40,6 +41,7 @@ const Toggle = ({ on }) => (
 );
 
 export default function Settings() {
+  const { business } = useBusiness();
   const [businesses, setBusinesses] = useState([]);
   const [newBusinessName, setNewBusinessName] = useState('');
   const [newBusinessGoal, setNewBusinessGoal] = useState('');
@@ -54,9 +56,7 @@ export default function Settings() {
   const [newSourceExtractMode, setNewSourceExtractMode] = useState('latest');
 
   useEffect(() => {
-    supabase.from('businesses').select('*').then(({ data }) => {
-      if (data) setBusinesses(data);
-    });
+    if (business) setBusinesses([business]);
     supabase.from('scraping_sources').select('*').is('persona_id', null).then(({ data }) => {
       if (data) setSources(data);
     });
@@ -126,9 +126,7 @@ export default function Settings() {
       </div>
 
       <Section icon={Briefcase} title="Businesses & Projects">
-        {businesses.map(b => (
-          <Row key={b.id} label={b.name} sub={b.goal} />
-        ))}
+        <Row key={business.id} label={business.name} sub={business.goal} />
         
         <form onSubmit={handleAddBusiness} style={{ marginTop: 16, padding: 16, background: 'var(--bg-3)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Add Another Business</div>

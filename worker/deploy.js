@@ -1,5 +1,6 @@
 const { NodeSSH } = require('node-ssh');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const ssh = new NodeSSH();
 
@@ -9,15 +10,31 @@ async function deploy() {
     await ssh.connect({
       host: '5.75.252.100',
       username: 'root',
-      password: 'mjaXRVMmbMwC7xCbcLCE123',
+      password: 'qRrgKXPaxWed',
       port: 22
     });
     console.log('Connected! Uploading worker files...');
 
-    const remoteDir = '/root/persona-hub-worker';
+    const remoteWorkerDir = '/root/persona-hub-worker';
+    const remoteFrontendDir = '/var/www/persona-hub';
 
-    // Create remote dir
-    await ssh.execCommand(`mkdir -p ${remoteDir}`);
+    // Create remote dirs
+    await ssh.execCommand(`mkdir -p ${remoteWorkerDir}`);
+    await ssh.execCommand(`mkdir -p ${remoteFrontendDir}`);
+
+    console.log('Building frontend locally...');
+    try {
+      execSync('npm run build', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
+    } catch (e) {
+      console.error('Frontend build failed');
+      process.exit(1);
+    }
+    
+    console.log('Uploading frontend dist...');
+    await ssh.putDirectory(path.join(__dirname, '..', 'dist'), remoteFrontendDir, {
+      recursive: true,
+      concurrency: 10
+    });
 
     // Upload files
     const localDir = __dirname;
@@ -41,27 +58,27 @@ async function deploy() {
       console.log(`Uploading ${file}...`);
       const fileDir = path.dirname(file);
       if (fileDir !== '.') {
-        await ssh.execCommand(`mkdir -p ${remoteDir}/${fileDir}`);
+        await ssh.execCommand(`mkdir -p ${remoteWorkerDir}/${fileDir}`);
       }
-      await ssh.putFile(path.join(localDir, file), `${remoteDir}/${file}`);
+      await ssh.putFile(path.join(localDir, file), `${remoteWorkerDir}/${file}`);
     }
 
     console.log('Installing dependencies on server...');
-    const npmInstall = await ssh.execCommand('npm install && npm install pm2 -g', { cwd: remoteDir });
+    const npmInstall = await ssh.execCommand('npm install && npm install pm2 -g', { cwd: remoteWorkerDir });
     console.log(npmInstall.stdout);
     if (npmInstall.stderr) console.error(npmInstall.stderr);
 
     console.log('Running system dependencies and PM2 setup...');
     const deployCmd = `
-          cd ${remoteDir}
+          cd ${remoteWorkerDir}
           echo "Waiting for apt-get lock..."
           while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
           while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 1; done
           
           echo "Installing system dependencies..."
           apt-get update
-          apt-get install -y ffmpeg python3-pip
-          
+          apt-get install -y ffmpeg python3-pip curl
+
           echo "Cleaning up disk space..."
           rm -rf ~/.cache/pip
           apt-get clean

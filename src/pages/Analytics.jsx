@@ -3,21 +3,23 @@ import Card from '../components/Card';
 import PlatformBadge from '../components/PlatformBadge';
 import { supabase } from '../lib/supabase';
 import { TrendingUp, Loader2 } from 'lucide-react';
+import { useBusiness } from '../components/BusinessContext';
 
 const weekData = [0, 0, 0, 0, 0, 0, 0];
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const max = 10;
 
 export default function Analytics() {
+  const { business } = useBusiness();
   const [personas, setPersonas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('personas').select('*, social_accounts(*)').then(({ data }) => {
+    supabase.from('personas').select('*, social_accounts(*)').eq('business_id', business.id).then(({ data }) => {
       if (data) setPersonas(data);
       setLoading(false);
     });
-  }, []);
+  }, [business.id]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 100 }}><Loader2 className="spin" /></div>;
 

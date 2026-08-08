@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Card from '../components/Card';
 import { Plus, Target, CheckCircle, Smartphone, PlaySquare, Image as ImageIcon, Video, AlignLeft, Hash, Edit2, Trash2, MoreVertical } from 'lucide-react';
+import { useBusiness } from '../components/BusinessContext';
 
 export default function Strategies() {
-  const [personas, setPersonas] = useState([]);
+  const { personas } = useBusiness();
   const [strategies, setStrategies] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -36,11 +37,6 @@ export default function Strategies() {
 
   useEffect(() => {
     const fetchInit = async () => {
-      const { data: pData } = await supabase.from('personas').select('*');
-      if (pData) {
-        setPersonas(pData);
-      }
-      
       const { data: sData } = await supabase.from('strategies').select('*, personas(name)');
       if (sData) setStrategies(sData);
       setLoading(false);

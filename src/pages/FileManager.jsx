@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import Card from '../components/Card';
-import { personas } from '../data/mockData';
+
 import { Folder, File, ChevronRight, Upload, Plus, Trash2, Edit2, UserPlus, MoreVertical, Search, CheckSquare, Square, List, Grid, Columns, Image as ImageIcon, PlayCircle, X, Smartphone, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useBusiness } from '../components/BusinessContext';
 
 export default function FileManager() {
+  const { personas } = useBusiness();
   const [items, setItems] = useState([]);
   
   // Navigation State

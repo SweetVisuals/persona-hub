@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, CalendarDays, BarChart2, Settings, Zap, Folder, HardDrive } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, CalendarDays, BarChart2, Settings, Zap, Folder, HardDrive, Mic } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const nav = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/personas', icon: Users, label: 'Personas' },
   { to: '/strategies', icon: Folder, label: 'Strategies' },
+  { to: '/audio-studio', icon: Mic, label: 'Audio Studio' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];

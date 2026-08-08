@@ -5,6 +5,25 @@ import PlatformBadge from '../components/PlatformBadge';
 import StatusBadge from '../components/StatusBadge';
 import { supabase } from '../lib/supabase';
 import { Plus, ChevronDown, ChevronUp, Activity, BarChart3, TrendingUp, X, Key, ShieldCheck, User, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+
+function GoogleOAuthButton({ onSuccess }) {
+  const login = useGoogleLogin({
+    onSuccess: tokenResponse => onSuccess(tokenResponse.code),
+    flow: 'auth-code',
+    scope: 'https://www.googleapis.com/auth/youtube.upload'
+  });
+
+  return (
+    <button 
+      onClick={() => login()}
+      style={{ width: '100%', padding: '14px', borderRadius: 'var(--radius)', border: 'none', background: '#4285F4', color: '#fff', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
+      Connect with Google
+    </button>
+  );
+}
 
 export default function Personas() {
   const [personas, setPersonas] = useState([]);
@@ -121,7 +140,7 @@ export default function Personas() {
         persona_id: addingAccountFor,
         platform: selectedPlatform,
         username: accountUsername,
-        session_cookie: loginMethod === 'google' ? `google_auth:${accountPassword}${account2FA ? '|' + account2FA : ''}` : accountPassword, // storing password temporarily in session_cookie for the worker to read
+        session_cookie: accountPassword, // storing password temporarily in session_cookie for the worker to read
         status: 'pending_login', // worker will pick this up
         followers: 0
       });
@@ -143,6 +162,35 @@ export default function Personas() {
       setLoginMethod('direct');
     } catch (err) {
       alert('Error saving account details: ' + err.message);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (code) => {
+    setIsValidating(true);
+    try {
+      const { error } = await supabase.from('social_accounts').insert({
+        persona_id: addingAccountFor,
+        platform: 'youtube',
+        username: 'Google Account',
+        session_cookie: JSON.stringify({ code }),
+        status: 'pending_oauth',
+        followers: 0
+      });
+      if (error) throw error;
+      
+      setPersonas(prev => prev.map(p => p.id === addingAccountFor ? {
+        ...p,
+        social_accounts: [...(p.social_accounts || []), {
+          id: Math.random(), platform: 'youtube', username: 'Google Account', status: 'pending_oauth'
+        }]
+      } : p));
+      
+      setAddingAccountFor(null);
+      setSelectedPlatform(null);
+    } catch (err) {
+      alert('Error connecting Google Account: ' + err.message);
     } finally {
       setIsValidating(false);
     }
@@ -425,36 +473,29 @@ export default function Personas() {
                   ))}
                 </div>
               </>
+            ) : selectedPlatform === 'youtube' ? (
+              <>
+                <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 24 }}>
+                  Connect your YouTube account securely using Google OAuth. This is required for background video publishing.
+                </p>
+                <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
+                  <GoogleOAuthButton onSuccess={handleGoogleSuccess} />
+                </GoogleOAuthProvider>
+              </>
             ) : (
               <>
                 <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 24 }}>
                   Provide the credentials for your {selectedPlatform} account. The background worker will automatically login and maintain the session 24/7.
                 </p>
 
-                <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-                  <button 
-                    onClick={() => setLoginMethod('direct')}
-                    style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius)', border: `1px solid ${loginMethod === 'direct' ? 'var(--text)' : 'var(--border)'}`, background: loginMethod === 'direct' ? 'rgba(255,255,255,0.05)' : 'transparent', color: loginMethod === 'direct' ? 'var(--text)' : 'var(--text-3)', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Direct Login
-                  </button>
-                  <button 
-                    onClick={() => setLoginMethod('google')}
-                    style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius)', border: `1px solid ${loginMethod === 'google' ? '#4285F4' : 'var(--border)'}`, background: loginMethod === 'google' ? 'rgba(66, 133, 244, 0.1)' : 'transparent', color: loginMethod === 'google' ? '#4285F4' : 'var(--text-3)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                    Google Auth
-                  </button>
-                </div>
-
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>
-                    <User size={14} /> {loginMethod === 'google' ? 'Google Email' : 'Account Username / Email'}
+                    <User size={14} /> Account Username / Email
                   </label>
                   <input 
                     value={accountUsername}
                     onChange={(e) => setAccountUsername(e.target.value)}
-                    placeholder={loginMethod === 'google' ? 'you@gmail.com' : `e.g. my_${selectedPlatform}_handle`}
+                    placeholder={`e.g. my_${selectedPlatform}_handle`}
                     style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13 }}
                   />
                 </div>

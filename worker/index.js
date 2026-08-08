@@ -8,7 +8,8 @@ const { scrapePinterestSearch, scrapeYouTubeSearch, scrapeTikTokSearch, scrapeYo
 const { scrapeAudio } = require('./src/scraper');
 const { generateSubtitles } = require('./src/transcriber');
 const { downloadImage } = require('./src/imageScraper');
-const { processPendingLogins } = require('./src/authWorker');
+const { processPendingLogins, processPendingOAuth } = require('./src/authWorker');
+const { processAudioExtractions } = require('./src/audioWorker');
 const fs = require('fs');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -34,11 +35,23 @@ dbLog(null, 'info', 'Worker initializing Automation & Analytics Engine...');
 cron.schedule('*/5 * * * *', async () => {
   try {
     await processPendingLogins();
+    await processPendingOAuth();
   } catch (err) {
     console.error('Auth Worker Error:', err);
   }
 });
 processPendingLogins(); // Run once on startup
+processPendingOAuth();
+
+// --- 0.5 Audio Extraction Cron Job (Runs every minute) ---
+cron.schedule('* * * * *', async () => {
+  try {
+    await processAudioExtractions();
+  } catch (err) {
+    console.error('Audio Worker Error:', err);
+  }
+});
+processAudioExtractions(); // Run once on startup
 
 // --- 1. Analytics Tracking Cron Job (Runs every 24 hours at midnight) ---
 cron.schedule('0 0 * * *', async () => {
@@ -170,9 +183,14 @@ async function runAutonomousSourcing() {
              matchedAccount = account;
           }
         }
-          
+        
+        // Don't use OAuth tokens for scraping
+        if (cookieString && cookieString.trim().startsWith('{')) {
+          cookieString = null;
+        }
+
         if (!cookieString) {
-           dbLog(source.persona_id, 'info', `No active ${cookiePlatform} account linked. Attempting anonymous scrape for "${source.url}"`);
+           dbLog(source.persona_id, 'info', `No active ${cookiePlatform} account linked (or OAuth token found). Attempting anonymous scrape for "${source.url}"`);
         }
         
         dbLog(source.persona_id, 'info', `Sourcing new content for query: "${source.url}"`);
@@ -182,7 +200,7 @@ async function runAutonomousSourcing() {
         
         if (source.platform === 'pinterest') {
           scrapedUrls = await scrapePinterestSearch(source.url, cookieString, 150);
-        } else if (source.platform === 'youtube' || (source.platform === 'youtube' && source.url.includes('youtube.com/'))) {
+        } else if (source.platform === 'youtube') {
           // If the user inputs a channel URL under regular youtube, treat it as channel scrape
           if (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')) {
              scrapedUrls = await scrapeYouTubeChannel(source.url, 15, extractMode, cookieString);
@@ -476,14 +494,14 @@ async function runGeneratorEngine() {
           .from('files')
           .select('id, url')
           .eq('persona_id', persona.id)
-          .like('url', '%.mp4');
+          .like('name', '%.mp4');
 
         // Get random music
         const { data: audioFiles } = await supabase
           .from('files')
           .select('id, url')
           .eq('persona_id', persona.id)
-          .like('url', '%.mp3');
+          .like('name', '%.mp3');
 
         if (!videoFiles || videoFiles.length === 0 || !audioFiles || audioFiles.length === 0) {
           dbLog(persona.id, 'warn', `Missing video or music for strategy: "${strategy.name}"`);
@@ -578,6 +596,10 @@ async function runGeneratorEngine() {
         } catch(e) {
            dbLog(persona.id, 'error', `Failed to generate video for "${strategy.name}": ${e.message}`);
         }
+      } else if (strategy.settings && strategy.settings.type === 'lyrics') {
+        const persona = strategy.personas;
+        dbLog(persona.id, 'info', `Running Lyrics Strategy: "${strategy.name}"...`);
+        // TODO: Implement lyric video generation from verified lyrics
       }
     }
   } catch (err) {
