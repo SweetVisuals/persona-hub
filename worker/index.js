@@ -146,169 +146,173 @@ async function runAutonomousSourcing() {
 
         foundAny = true;
         
-        // Map youtube_music to youtube for cookies
-        const cookiePlatform = source.platform === 'youtube_music' ? 'youtube' : source.platform;
+        try {
+          // Map youtube_music to youtube for cookies
+          const cookiePlatform = source.platform === 'youtube_music' ? 'youtube' : source.platform;
 
-        // Try to get a valid cookie if platform requires it (for global sources, we'll try to find any active account)
-        let cookieString = null;
-        let matchedAccount = null;
-        
-        let platformFilters = [cookiePlatform];
-        if (cookiePlatform === 'youtube') platformFilters = ['youtube', 'google'];
-        
-        if (source.persona_id) {
-          const { data: accounts } = await supabase
-            .from('social_accounts')
-            .select('id, session_cookie')
-            .eq('persona_id', source.persona_id)
-            .in('platform', platformFilters)
-            .eq('status', 'active')
-            .limit(1);
-          const account = accounts && accounts[0] ? accounts[0] : null;
-          if (account) {
-             cookieString = account.session_cookie;
-             matchedAccount = account;
-          }
-        } else {
-          // If global, try to get ANY active cookie for the platform just to bypass blocks if needed
-          const { data: accounts } = await supabase
-            .from('social_accounts')
-            .select('id, session_cookie')
-            .in('platform', platformFilters)
-            .eq('status', 'active')
-            .limit(1);
-          const account = accounts && accounts[0] ? accounts[0] : null;
-          if (account) {
-             cookieString = account.session_cookie;
-             matchedAccount = account;
-          }
-        }
-        
-        // Don't use OAuth tokens for scraping
-        if (cookieString && cookieString.trim().startsWith('{')) {
-          cookieString = null;
-        }
-
-        if (!cookieString) {
-           dbLog(source.persona_id, 'info', `No active ${cookiePlatform} account linked (or OAuth token found). Attempting anonymous scrape for "${source.url}"`);
-        }
-        
-        dbLog(source.persona_id, 'info', `Sourcing new content for query: "${source.url}"`);
-        
-        let scrapedUrls = [];
-        const extractMode = source.extract_mode || 'latest';
-        
-        if (source.platform === 'pinterest') {
-          scrapedUrls = await scrapePinterestSearch(source.url, cookieString, 150);
-        } else if (source.platform === 'youtube') {
-          // If the user inputs a channel URL under regular youtube, treat it as channel scrape
-          if (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')) {
-             scrapedUrls = await scrapeYouTubeChannel(source.url, 15, extractMode, cookieString);
+          // Try to get a valid cookie if platform requires it (for global sources, we'll try to find any active account)
+          let cookieString = null;
+          let matchedAccount = null;
+          
+          let platformFilters = [cookiePlatform];
+          if (cookiePlatform === 'youtube') platformFilters = ['youtube', 'google'];
+          
+          if (source.persona_id) {
+            const { data: accounts } = await supabase
+              .from('social_accounts')
+              .select('id, session_cookie')
+              .eq('persona_id', source.persona_id)
+              .in('platform', platformFilters)
+              .eq('status', 'active')
+              .limit(1);
+            const account = accounts && accounts[0] ? accounts[0] : null;
+            if (account) {
+               cookieString = account.session_cookie;
+               matchedAccount = account;
+            }
           } else {
-             scrapedUrls = await scrapeYouTubeSearch(source.url, 15, extractMode, cookieString);
+            // If global, try to get ANY active cookie for the platform just to bypass blocks if needed
+            const { data: accounts } = await supabase
+              .from('social_accounts')
+              .select('id, session_cookie')
+              .in('platform', platformFilters)
+              .eq('status', 'active')
+              .limit(1);
+            const account = accounts && accounts[0] ? accounts[0] : null;
+            if (account) {
+               cookieString = account.session_cookie;
+               matchedAccount = account;
+            }
           }
-        } else if (source.platform === 'tiktok') {
-          scrapedUrls = await scrapeTikTokSearch(source.url, cookieString, 15, extractMode);
-        } else if (source.platform === 'youtube_music') {
-          if (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')) {
-            scrapedUrls = await scrapeYouTubeChannel(source.url, 15, extractMode, cookieString);
-          } else {
-            scrapedUrls = await scrapeYouTubeSearch(source.url, 15, extractMode, cookieString);
+          
+          // Don't use OAuth tokens for scraping
+          if (cookieString && cookieString.trim().startsWith('{')) {
+            cookieString = null;
           }
-        }
-        
-        if (scrapedUrls.length > 0) {
-            dbLog(source.persona_id, 'info', `Found ${scrapedUrls.length} media items. Processing and organizing...`);
-            
-            const rootFolderName = source.personas ? source.personas.name : 'Global Sourcing';
-            const rootId = await getOrCreateFolder(rootFolderName, null, source.persona_id);
-            const platformName = source.platform === 'youtube_music' ? 'Youtube_music' : source.platform.charAt(0).toUpperCase() + source.platform.slice(1);
-            const platformId = await getOrCreateFolder(platformName, rootId, source.persona_id);
-            
-            let queryId = platformId; // Default for non-video
 
-            if (source.platform === 'youtube' || source.platform === 'tiktok') {
-              let targetFolderId = platformId;
-              if (source.url.toLowerCase().includes('#shorts')) {
-                targetFolderId = await getOrCreateFolder('Shorts', platformId, source.persona_id);
-              }
-              queryId = targetFolderId; // For videos, don't nest under query
+          if (!cookieString) {
+             dbLog(source.persona_id, 'info', `No active ${cookiePlatform} account linked (or OAuth token found). Attempting anonymous scrape for "${source.url}"`);
+          }
+          
+          dbLog(source.persona_id, 'info', `Sourcing new content for query: "${source.url}"`);
+          
+          let scrapedUrls = [];
+          const extractMode = source.extract_mode || 'latest';
+          
+          if (source.platform === 'pinterest') {
+            scrapedUrls = await scrapePinterestSearch(source.url, cookieString, 150);
+          } else if (source.platform === 'youtube') {
+            // If the user inputs a channel URL under regular youtube, treat it as channel scrape
+            if (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')) {
+               scrapedUrls = await scrapeYouTubeChannel(source.url, 15, extractMode, cookieString);
             } else {
-              queryId = await getOrCreateFolder(source.url, platformId, source.persona_id);
+               scrapedUrls = await scrapeYouTubeSearch(source.url, 15, extractMode, cookieString);
             }
-            
-            let addedCount = 0;
-            for (const item of scrapedUrls) {
-              const itemUrl = item.url;
-              const safeTitle = (item.title && item.title.trim().length > 0 && item.title !== 'pinterest_image')
-                ? item.title.replace(/[^a-z0-9]/gi, '_').substring(0, 40).toLowerCase() 
-                : source.platform;
+          } else if (source.platform === 'tiktok') {
+            scrapedUrls = await scrapeTikTokSearch(source.url, cookieString, 15, extractMode);
+          } else if (source.platform === 'youtube_music') {
+            if (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')) {
+              scrapedUrls = await scrapeYouTubeChannel(source.url, 15, extractMode, cookieString);
+            } else {
+              scrapedUrls = await scrapeYouTubeSearch(source.url, 15, extractMode, cookieString);
+            }
+          }
+          
+          if (scrapedUrls.length > 0) {
+              dbLog(source.persona_id, 'info', `Found ${scrapedUrls.length} media items. Processing and organizing...`);
               
-              const { data: existing } = await supabase.from('files').select('id').eq('source_url', itemUrl).single();
-              if (existing) continue;
+              const rootFolderName = source.personas ? source.personas.name : 'Global Sourcing';
+              const rootId = await getOrCreateFolder(rootFolderName, null, source.persona_id);
+              const platformName = source.platform === 'youtube_music' ? 'Youtube_music' : source.platform.charAt(0).toUpperCase() + source.platform.slice(1);
+              const platformId = await getOrCreateFolder(platformName, rootId, source.persona_id);
               
-              try {
-                  let localPath;
-                  let r2Folder;
-                  let ext;
-                  let srtR2Url = null;
-                  
-                  if (source.platform === 'pinterest') {
-                    localPath = await downloadImage(itemUrl, cookieString);
-                    r2Folder = 'images';
-                    ext = 'jpg';
-                  } else if (source.platform === 'youtube_music' || (source.platform === 'youtube' && (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')))) {
-                    localPath = await scrapeAudio(itemUrl, cookieString);
-                    r2Folder = 'music';
-                    ext = 'mp3';
-                    
-                    // Transcribe original music right after downloading
-                    try {
-                       const srtPath = await generateSubtitles(localPath);
-                       srtR2Url = await uploadToR2(srtPath, 'music/subtitles');
-                       fs.unlinkSync(srtPath);
-                    } catch(err) {
-                       console.error(`Transcription failed for ${itemUrl}:`, err);
-                    }
-                  } else {
-                    localPath = await scrapeVideo(itemUrl, cookieString);
-                    r2Folder = 'raw_footage';
-                    ext = 'mp4';
-                  }
-                  
-                  const r2Url = await uploadToR2(localPath, r2Folder);
-                  const sizeInBytes = fs.statSync(localPath).size;
-                  const fileSizeMB = sizeInBytes > 1024 * 1024 
-                    ? (sizeInBytes / (1024 * 1024)).toFixed(2) + ' MB' 
-                    : (sizeInBytes / 1024).toFixed(2) + ' KB';
-                  
-                  await supabase.from('files').insert({
-                    type: 'file',
-                    name: `${safeTitle}_${Date.now()}.${ext}`,
-                    persona_id: source.persona_id,
-                    parent_id: queryId,
-                    size: fileSizeMB,
-                    url: r2Url,
-                    source_url: itemUrl,
-                    metadata: { search_query: source.url, srt_url: srtR2Url }
-                  });
-                  
-                  fs.unlinkSync(localPath);
-                  addedCount++;
-              } catch(e) {
-                  console.error(`Failed to process ${source.platform} item ${itemUrl}:`, e.message);
+              let queryId = platformId; // Default for non-video
+
+              if (source.platform === 'youtube' || source.platform === 'tiktok') {
+                let targetFolderId = platformId;
+                if (source.url.toLowerCase().includes('#shorts')) {
+                  targetFolderId = await getOrCreateFolder('Shorts', platformId, source.persona_id);
+                }
+                queryId = targetFolderId; // For videos, don't nest under query
+              } else {
+                queryId = await getOrCreateFolder(source.url, platformId, source.persona_id);
               }
-            }
-            dbLog(source.persona_id, 'success', `Organized ${addedCount} new items into /${rootFolderName}/${platformName}/${source.url}`);
-        } else {
-            dbLog(source.persona_id, 'info', `No items returned for "${source.url}". Cookies might be expired or search failed.`);
-            if (matchedAccount && matchedAccount.id && source.platform !== 'youtube' && source.platform !== 'youtube_music') {
-               await supabase.from('social_accounts').update({ status: 'error' }).eq('id', matchedAccount.id);
-            }
+              
+              let addedCount = 0;
+              for (const item of scrapedUrls) {
+                const itemUrl = item.url;
+                const safeTitle = (item.title && item.title.trim().length > 0 && item.title !== 'pinterest_image')
+                  ? item.title.replace(/[^a-z0-9]/gi, '_').substring(0, 40).toLowerCase() 
+                  : source.platform;
+                
+                const { data: existing } = await supabase.from('files').select('id').eq('source_url', itemUrl).single();
+                if (existing) continue;
+                
+                try {
+                    let localPath;
+                    let r2Folder;
+                    let ext;
+                    let srtR2Url = null;
+                    
+                    if (source.platform === 'pinterest') {
+                      localPath = await downloadImage(itemUrl, cookieString);
+                      r2Folder = 'images';
+                      ext = 'jpg';
+                    } else if (source.platform === 'youtube_music' || (source.platform === 'youtube' && (source.url.includes('/channel/') || source.url.includes('/@') || source.url.startsWith('@')))) {
+                      localPath = await scrapeAudio(itemUrl, cookieString);
+                      r2Folder = 'music';
+                      ext = 'mp3';
+                      
+                      // Transcribe original music right after downloading
+                      try {
+                         const srtPath = await generateSubtitles(localPath);
+                         srtR2Url = await uploadToR2(srtPath, 'music/subtitles');
+                         fs.unlinkSync(srtPath);
+                      } catch(err) {
+                         console.error(`Transcription failed for ${itemUrl}:`, err);
+                      }
+                    } else {
+                      localPath = await scrapeVideo(itemUrl, cookieString);
+                      r2Folder = 'raw_footage';
+                      ext = 'mp4';
+                    }
+                    
+                    const r2Url = await uploadToR2(localPath, r2Folder);
+                    const sizeInBytes = fs.statSync(localPath).size;
+                    const fileSizeMB = sizeInBytes > 1024 * 1024 
+                      ? (sizeInBytes / (1024 * 1024)).toFixed(2) + ' MB' 
+                      : (sizeInBytes / 1024).toFixed(2) + ' KB';
+                    
+                    await supabase.from('files').insert({
+                      type: 'file',
+                      name: `${safeTitle}_${Date.now()}.${ext}`,
+                      persona_id: source.persona_id,
+                      parent_id: queryId,
+                      size: fileSizeMB,
+                      url: r2Url,
+                      source_url: itemUrl,
+                      metadata: { search_query: source.url, srt_url: srtR2Url }
+                    });
+                    
+                    fs.unlinkSync(localPath);
+                    addedCount++;
+                } catch(e) {
+                    console.error(`Failed to process ${source.platform} item ${itemUrl}:`, e.message);
+                }
+              }
+              dbLog(source.persona_id, 'success', `Organized ${addedCount} new items into /${rootFolderName}/${platformName}/${source.url}`);
+          } else {
+              dbLog(source.persona_id, 'info', `No items returned for "${source.url}". Cookies might be expired or search failed.`);
+              if (matchedAccount && matchedAccount.id && source.platform !== 'youtube' && source.platform !== 'youtube_music') {
+                 await supabase.from('social_accounts').update({ status: 'error' }).eq('id', matchedAccount.id);
+              }
+          }
+          
+          // Update last_run_at
+          await supabase.from('scraping_sources').update({ last_run_at: new Date().toISOString() }).eq('id', source.id);
+        } catch (sourceErr) {
+          dbLog(source.persona_id, 'error', `Failed to process source ${source.url} on ${source.platform}: ${sourceErr.message}`);
         }
-        
-        // Update last_run_at
-        await supabase.from('scraping_sources').update({ last_run_at: new Date().toISOString() }).eq('id', source.id);
       }
     }
     
