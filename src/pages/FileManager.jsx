@@ -28,9 +28,23 @@ export default function FileManager() {
     
     // Fetch initial files
     const fetchFiles = async () => {
-      const { data } = await supabase.from('files').select('*');
-      if (data) {
-        setItems(data.map(d => ({
+      let allFiles = [];
+      let page = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data } = await supabase.from('files').select('*').range(page * 1000, (page + 1) * 1000 - 1);
+        if (data && data.length > 0) {
+          allFiles = [...allFiles, ...data];
+          if (data.length < 1000) hasMore = false;
+          else page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      if (allFiles.length > 0) {
+        setItems(allFiles.map(d => ({
           id: d.id,
           type: d.type,
           name: d.name,
