@@ -4,10 +4,11 @@ const cron = require('node-cron');
 const { verifyAccountCookie, postVideo } = require('./src/poster');
 const { scrapeVideo } = require('./src/scraper');
 const { uploadToR2, deleteFromR2 } = require('./src/storage');
-const { scrapePinterestSearch, scrapeYouTubeSearch, scrapeTikTokSearch, scrapeYouTubeChannel } = require('./src/sourcing');
+const { scrapePinterestSearch, scrapeYouTubeSearch, scrapeTikTokSearch, scrapeYouTubeChannel, scrapeYouTubeArtistAudio } = require('./src/sourcing');
 const { scrapeAudio } = require('./src/scraper');
 const { generateSubtitles } = require('./src/transcriber');
 const { downloadImage } = require('./src/imageScraper');
+const { resolveChannelName } = require('./src/channelResolver');
 const { processPendingLogins, processPendingOAuth } = require('./src/authWorker');
 const { processAudioExtractions } = require('./src/audioWorker');
 const fs = require('fs');
@@ -331,6 +332,129 @@ cron.schedule('*/2 * * * *', runAutonomousSourcing);
 // Run once on startup so we don't have to wait 4 hours!
 setTimeout(runAutonomousSourcing, 5000);
 
+// --- 2b. Artist Audio Sourcing Engine ---
+async function runArtistAudioSourcing() {
+  dbLog(null, 'info', 'Waking up Artist Audio Sourcing Engine...');
+  try {
+    const { data: personas, error } = await supabase.from('personas').select('*').not('youtube_channel_url', 'is', null);
+    if (error) throw error;
+    if (!personas || personas.length === 0) {
+      dbLog(null, 'info', 'No personas with YouTube channel URLs configured.');
+      return;
+    }
+
+    for (const persona of personas) {
+      try {
+        const channelUrl = persona.youtube_channel_url;
+        const strategy = persona.audio_strategy || 'latest';
+        if (!channelUrl || channelUrl.trim().length === 0) continue;
+
+        // Check if we already have a pending/approved extraction from the last 24 hours
+        const { data: recentExtractions } = await supabase.from('audio_extractions')
+          .select('id')
+          .eq('persona_id', persona.id)
+          .in('status', ['pending_review', 'approved'])
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .limit(1);
+        
+        if (recentExtractions && recentExtractions.length > 0) {
+          continue; // Already have a recent extraction, skip
+        }
+
+        dbLog(persona.id, 'info', `Sourcing artist audio from ${channelUrl} (strategy: ${strategy})`);
+
+        // Try to resolve channel name for display
+        try {
+          const channelName = await resolveChannelName(channelUrl);
+          dbLog(persona.id, 'info', `Resolved channel name: ${channelName}`);
+        } catch(e) {
+          dbLog(persona.id, 'warn', `Could not resolve channel name: ${e.message}`);
+        }
+
+        // Get cookie if available
+        let cookieString = null;
+        const { data: accounts } = await supabase.from('social_accounts').select('session_cookie')
+          .eq('persona_id', persona.id).in('platform', ['youtube', 'google']).eq('status', 'active').limit(1);
+        if (accounts && accounts[0] && accounts[0].session_cookie && !accounts[0].session_cookie.trim().startsWith('{')) {
+          cookieString = accounts[0].session_cookie;
+        }
+
+        const scrapedUrls = await scrapeYouTubeArtistAudio(channelUrl, strategy, 1, cookieString);
+        
+        if (scrapedUrls.length === 0) {
+          dbLog(persona.id, 'info', 'No audio found from artist channel.');
+          continue;
+        }
+
+        for (const item of scrapedUrls) {
+          // Check if we already have this exact source URL
+          const { data: existing } = await supabase.from('audio_extractions').select('id').eq('source_url', item.url).single();
+          if (existing) continue;
+
+          try {
+            // Download as MP3
+            const localPath = await scrapeAudio(item.url, cookieString);
+            dbLog(persona.id, 'info', `Downloaded audio: ${item.title}`);
+
+            // Upload to R2
+            const r2Url = await uploadToR2(localPath, 'music');
+            dbLog(persona.id, 'info', `Uploaded audio to R2: ${r2Url}`);
+
+            // Transcribe with Whisper
+            let srtContent = '';
+            try {
+              const srtPath = await generateSubtitles(localPath);
+              srtContent = fs.readFileSync(srtPath, 'utf8');
+              fs.unlinkSync(srtPath);
+              dbLog(persona.id, 'info', `Transcribed lyrics for: ${item.title}`);
+            } catch(e) {
+              dbLog(persona.id, 'warn', `Transcription failed for ${item.title}: ${e.message}`);
+            }
+
+            // Insert into audio_extractions for user review
+            await supabase.from('audio_extractions').insert({
+              persona_id: persona.id,
+              source_type: 'youtube_channel',
+              source_url: item.url,
+              status: 'pending_review',
+              mp3_url: r2Url,
+              lyrics: srtContent
+            });
+
+            // Also save to file browser
+            const rootId = await getOrCreateFolder(persona.name, null, persona.id);
+            const musicFolderId = await getOrCreateFolder('Music', rootId, persona.id);
+            const safeTitle = item.title.replace(/[^a-z0-9]/gi, '_').substring(0, 40).toLowerCase();
+            await supabase.from('files').insert({
+              type: 'file',
+              name: `${safeTitle}_${Date.now()}.mp3`,
+              persona_id: persona.id,
+              parent_id: musicFolderId,
+              size: (fs.statSync(localPath).size / (1024 * 1024)).toFixed(2) + ' MB',
+              url: r2Url,
+              source_url: item.url,
+              metadata: { artist_channel: channelUrl, song_title: item.title }
+            });
+
+            fs.unlinkSync(localPath);
+            dbLog(persona.id, 'success', `Artist audio ready for review: ${item.title}`);
+          } catch(e) {
+            dbLog(persona.id, 'error', `Failed to process artist audio ${item.url}: ${e.message}`);
+          }
+        }
+      } catch(e) {
+        dbLog(persona.id, 'error', `Artist audio sourcing failed: ${e.message}`);
+      }
+    }
+    dbLog(null, 'info', 'Artist Audio Sourcing Engine cycle complete.');
+  } catch (err) {
+    dbLog(null, 'error', `Artist audio sourcing error: ${err.message}`);
+  }
+}
+
+cron.schedule('*/10 * * * *', runArtistAudioSourcing);
+setTimeout(runArtistAudioSourcing, 15000);
+
 // --- 3. Generator Engine (Builds Slideshows & Videos based on Strategies) ---
 const EditorEngine = require('./src/editor');
 const { processVideo } = require('./src/videoProcessor');
@@ -536,9 +660,9 @@ async function runGeneratorEngine() {
               console.error('Transcription failed', e);
            }
 
-           // Step 3: Process video (merge bg, audio, srt)
+           // Step 3: Process video (merge bg, audio, srt) with 25%/8% trimming
            const targetAspect = strategy.settings?.aspectRatio || persona.aspect_ratio || '9:16';
-           await processVideo(bgVideo.url, outPath, audioChunkPath, srtPath, targetAspect);
+           await processVideo(bgVideo.url, outPath, audioChunkPath, srtPath, targetAspect, { startPercent: 0.25, endPercent: 0.08 });
 
            // Step 4: Upload final video
            const finalUrl = await uploadToR2(outPath, 'edits');

@@ -6,7 +6,7 @@ const oldAnon = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5c
 const oldDb = createClient(oldUrl, oldAnon);
 
 // New Hetzner Supabase
-const newUrl = 'http://5.75.252.100:8000';
+const newUrl = 'http://5.75.252.100:8080';
 // We use the SERVICE_ROLE_KEY to bypass RLS for inserting and potentially setting auth IDs if needed
 const newServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q';
 const newDb = createClient(newUrl, newServiceKey);

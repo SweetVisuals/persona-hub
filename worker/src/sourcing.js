@@ -377,4 +377,86 @@ async function scrapeYouTubeChannel(channelUrl, limit = 5, extractMode = 'latest
   });
 }
 
-module.exports = { scrapePinterestSearch, scrapeYouTubeSearch, scrapeTikTokSearch, scrapeYouTubeChannel };
+async function scrapeYouTubeArtistAudio(channelUrl, strategy, limit = 1, cookieString = null) {
+  return new Promise((resolve, reject) => {
+    let finalUrl = channelUrl;
+    console.log(`[SOURCING] Starting yt-dlp artist audio scrape for YouTube: "${finalUrl}"`);
+    
+    const args = [
+      finalUrl,
+      '--flat-playlist',
+      '--dump-json',
+      '--extractor-args', 'youtube:player-client=android,web'
+    ];
+    
+    if (strategy === 'latest') {
+      args.push('--playlist-end', limit.toString());
+    } else if (strategy === 'best') {
+      args.push('--playlist-end', '20');
+    }
+    
+    let tmpCookieFile = null;
+    if (cookieString) {
+      try {
+        const crypto = require('crypto');
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        tmpCookieFile = path.join(os.tmpdir(), `ytartist_cookies_${crypto.randomBytes(8).toString('hex')}.txt`);
+        let parsed = [];
+        if (cookieString.trim().startsWith('[')) {
+          parsed = JSON.parse(cookieString);
+        } else {
+          const pairs = cookieString.split(';').map(s => s.trim()).filter(Boolean);
+          parsed = pairs.map(p => {
+            const [name, ...val] = p.split('=');
+            return { name, value: val.join('='), domain: '.youtube.com' };
+          });
+        }
+        let netscapeCookies = '# Netscape HTTP Cookie File\n';
+        for (const c of parsed) {
+          netscapeCookies += `${c.domain || '.youtube.com'}\tTRUE\t/\tTRUE\t${Math.floor(Date.now() / 1000) + 3600}\t${c.name}\t${c.value}\n`;
+        }
+        fs.writeFileSync(tmpCookieFile, netscapeCookies);
+        args.push('--cookies', tmpCookieFile);
+      } catch(e) {}
+    }
+
+    const ytDlpPath = require('youtube-dl-exec/src/constants').YOUTUBE_DL_PATH;
+    const ytDlp = spawn(ytDlpPath, args);
+
+    let output = '';
+    ytDlp.stdout.on('data', (data) => { output += data.toString(); });
+    ytDlp.stderr.on('data', (data) => { console.error(`[yt-dlp stderr] ${data.toString().trim()}`); });
+    
+    ytDlp.on('close', (code) => {
+      console.log(`[SOURCING] yt-dlp process exited with code ${code}`);
+      let results = [];
+      const lines = output.trim().split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.url || parsed.webpage_url || parsed.original_url) {
+             const vUrl = parsed.url || parsed.webpage_url || parsed.original_url;
+             results.push({ url: vUrl, title: parsed.title || 'youtube_audio', view_count: parsed.view_count || 0 });
+          }
+        } catch(e) {}
+      }
+      
+      if (strategy === 'best') {
+        results.sort((a, b) => b.view_count - a.view_count);
+      }
+      
+      results = results.map(r => ({ url: r.url, title: r.title }));
+      
+      console.log(`[SOURCING] Scraped ${results.length} audios from YouTube artist "${channelUrl}"`);
+      if (tmpCookieFile && require('fs').existsSync(tmpCookieFile)) {
+        require('fs').unlinkSync(tmpCookieFile);
+      }
+      resolve(results.slice(0, limit));
+    });
+  });
+}
+
+module.exports = { scrapePinterestSearch, scrapeYouTubeSearch, scrapeTikTokSearch, scrapeYouTubeChannel, scrapeYouTubeArtistAudio };

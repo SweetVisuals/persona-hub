@@ -24,7 +24,6 @@ async function processPendingLogins() {
     
     // In our UI, we temporarily saved the password in session_cookie during the pending_login phase
     let extractedPassword = acc.session_cookie;
-    let extractedPassword = acc.session_cookie;
 
     const password = extractedPassword;
     if (!password) {

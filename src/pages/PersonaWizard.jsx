@@ -78,6 +78,8 @@ export default function PersonaWizard() {
             aspectRatio: data.aspect_ratio || '9:16',
             agent_type: data.agent_type || 'fan',
             tone: data.tone || 'enthusiastic',
+            youtube_channel_url: data.youtube_channel_url || '',
+            audio_strategy: data.audio_strategy || 'latest',
             schedule_config: data.schedule_config || { postsPerDay: 3, activeHours: '9am - 9pm', strategies: [] },
             sources: data.scraping_sources && data.scraping_sources.length > 0 ? data.scraping_sources : [
               { id: 1, platform: 'pinterest', url: 'black and white city aesthetic' }
@@ -102,6 +104,8 @@ export default function PersonaWizard() {
     aspectRatio: '9:16',
     agent_type: 'fan',
     tone: 'enthusiastic',
+    youtube_channel_url: '',
+    audio_strategy: 'latest',
     schedule_config: { postsPerDay: 3, activeHours: '9am - 9pm', strategies: [] },
     sources: [
       { id: 1, platform: 'pinterest', url: 'vintage nyc aesthetic', frequency: '5min', extract_mode: 'latest' },
@@ -154,6 +158,8 @@ export default function PersonaWizard() {
           aspect_ratio: formData.aspectRatio,
           agent_type: formData.agent_type,
           tone: formData.tone,
+          youtube_channel_url: formData.youtube_channel_url,
+          audio_strategy: formData.audio_strategy,
           schedule_config: formData.schedule_config,
         }).eq('id', id);
         if (personaError) throw personaError;
@@ -174,6 +180,8 @@ export default function PersonaWizard() {
           aspect_ratio: formData.aspectRatio,
           agent_type: formData.agent_type,
           tone: formData.tone,
+          youtube_channel_url: formData.youtube_channel_url,
+          audio_strategy: formData.audio_strategy,
           schedule_config: formData.schedule_config,
         }).select().single();
 
@@ -303,6 +311,30 @@ export default function PersonaWizard() {
                     placeholder="e.g. Travel, Fashion, Tech" 
                     style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }} 
                   />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>YouTube Channel URL</label>
+                  <input 
+                    value={formData.youtube_channel_url} onChange={e => updateForm('youtube_channel_url', e.target.value)}
+                    placeholder="https://www.youtube.com/@ArtistName"
+                    style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>Paste the artist's official YouTube channel link. The name will be extracted automatically.</div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>Audio Source Strategy</label>
+                  <select 
+                    value={formData.audio_strategy} 
+                    onChange={e => updateForm('audio_strategy', e.target.value)}
+                    style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, WebkitAppearance: 'none' }}
+                  >
+                    <option value="latest">Latest Release</option>
+                    <option value="best">Best Release (Most Popular)</option>
+                  </select>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>Choose how to pick the audio track from this artist's channel.</div>
                 </div>
               </div>
 

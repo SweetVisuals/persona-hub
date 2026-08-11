@@ -13,6 +13,7 @@ export default function BusinessTopbar({ businessId, personaId, onToggleLogs, on
     { name: 'Drafting', path: `/b/${businessId}/drafting` },
     { name: 'Calendar', path: `/b/${businessId}/calendar` },
     { name: 'Files', path: `/b/${businessId}/files` },
+    { name: 'Lyrics', path: `/b/${businessId}/lyrics-review` },
     { name: 'Settings', path: `/b/${businessId}/settings` },
   ];
 

@@ -12,6 +12,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import FileManager from './pages/FileManager';
 import Drafting from './pages/Drafting';
+import LyricsReview from './pages/LyricsReview';
 import { BusinessProvider } from './components/BusinessContext';
 import BusinessTopbar from './components/BusinessTopbar';
 import LogsPanel from './components/LogsPanel';
@@ -46,6 +47,7 @@ const BusinessLayout = ({ onToggleLogs, setQueueOpen }) => {
             <Route path="/settings" element={<Settings />} />
             <Route path="/files" element={<FileManager />} />
             <Route path="/drafting" element={<Drafting />} />
+            <Route path="/lyrics-review" element={<LyricsReview />} />
           </Routes>
         </main>
       </div>

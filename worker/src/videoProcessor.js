@@ -2,7 +2,25 @@ const ffmpeg = require('fluent-ffmpeg');
 const path = require('path');
 const fs = require('fs');
 
-async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16') {
+function getVideoDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) return reject(err);
+      resolve(metadata.format.duration);
+    });
+  });
+}
+
+async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16', trimOptions = null) {
+  let duration = 0;
+  if (trimOptions) {
+    try {
+      duration = await getVideoDuration(inputPath);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     console.log(`[VIDEO PROCESSOR] Processing ${inputPath} with audio ${audioPath} and ratio ${aspectRatio}...`);
     
@@ -54,6 +72,13 @@ async function processVideo(inputPath, outputPath, audioPath = null, srtPath = n
 
     let command = ffmpeg(inputPath);
     
+    if (trimOptions) {
+      const startTime = duration * (trimOptions.startPercent || 0);
+      const endTrim = duration * (trimOptions.endPercent || 0);
+      const effectiveDuration = duration - startTime - endTrim;
+      command = command.seekInput(startTime).duration(effectiveDuration);
+    }
+
     if (audioPath && fs.existsSync(audioPath)) {
       command = command.input(audioPath);
     }
@@ -74,4 +99,4 @@ async function processVideo(inputPath, outputPath, audioPath = null, srtPath = n
   });
 }
 
-module.exports = { processVideo };
+module.exports = { processVideo, getVideoDuration };
