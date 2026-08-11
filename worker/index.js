@@ -246,8 +246,8 @@ async function runAutonomousSourcing() {
                   ? item.title.replace(/[^a-z0-9]/gi, '_').substring(0, 40).toLowerCase() 
                   : source.platform;
                 
-                const { data: existing } = await supabase.from('files').select('id').eq('source_url', itemUrl).single();
-                if (existing) continue;
+                const { data: existing } = await supabase.from('files').select('id').eq('source_url', itemUrl).limit(1);
+                if (existing && existing.length > 0) continue;
                 
                 try {
                     let localPath;
@@ -388,8 +388,8 @@ async function runArtistAudioSourcing() {
 
         for (const item of scrapedUrls) {
           // Check if we already have this exact source URL
-          const { data: existing } = await supabase.from('audio_extractions').select('id').eq('source_url', item.url).single();
-          if (existing) continue;
+          const { data: existing } = await supabase.from('audio_extractions').select('id').eq('source_url', item.url).limit(1);
+          if (existing && existing.length > 0) continue;
 
           try {
             // Download as MP3
@@ -484,11 +484,15 @@ async function runGeneratorEngine() {
         dbLog(persona.id, 'info', `Running strategy: "${strategy.name}"...`);
 
         // Get pinterest files
-        const { data: files } = await supabase
+        let { data: files } = await supabase
           .from('files')
-          .select('id, url')
+          .select('*')
           .eq('persona_id', persona.id)
           .not('source_url', 'is', null);
+          
+        if (strategy.settings.type === 'slideshow') {
+            files = (files || []).filter(f => !f.url.toLowerCase().endsWith('.mp4') && !f.url.toLowerCase().endsWith('.mp3') && !f.name.toLowerCase().endsWith('.mp4') && !f.name.toLowerCase().endsWith('.mp3'));
+        }
 
         const slideCount = strategy.settings.slides ? strategy.settings.slides.length : 0;
         if (!files || files.length < slideCount || slideCount === 0) {
