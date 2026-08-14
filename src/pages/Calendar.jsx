@@ -128,14 +128,37 @@ export default function Calendar() {
             const isEmpty = dayEvents.length === 0;
 
             return (
-              <div key={day} className={`calendar-cell ${isEmpty ? 'empty' : ''} ${isToday ? 'today' : ''}`} style={{
-                borderRight: (index + 1) % 7 === 0 ? 'none' : '1px solid var(--border)',
-                borderBottom: index >= totalCells - 7 ? 'none' : '1px solid var(--border)',
-                padding: '12px',
-                background: isToday ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
-                position: 'relative',
-                minHeight: '120px'
-              }}>
+              <div 
+                key={day} 
+                className={`calendar-cell ${isEmpty ? 'empty' : ''} ${isToday ? 'today' : ''}`} 
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const taskId = e.dataTransfer.getData('taskId');
+                  if (!taskId) return;
+                  
+                  // Optimistically update UI
+                  const targetDate = new Date(year, month, day);
+                  const taskToMove = tasks.find(t => t.id === taskId);
+                  if (taskToMove) {
+                    const originalDate = new Date(taskToMove.scheduled_for);
+                    targetDate.setHours(originalDate.getHours(), originalDate.getMinutes(), originalDate.getSeconds());
+                    
+                    setTasks(tasks.map(t => t.id === taskId ? { ...t, scheduled_for: targetDate.toISOString() } : t));
+                    
+                    // Update database
+                    await supabase.from('automation_tasks').update({ scheduled_for: targetDate.toISOString() }).eq('id', taskId);
+                  }
+                }}
+                style={{
+                  borderRight: (index + 1) % 7 === 0 ? 'none' : '1px solid var(--border)',
+                  borderBottom: index >= totalCells - 7 ? 'none' : '1px solid var(--border)',
+                  padding: '12px',
+                  background: isToday ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                  position: 'relative',
+                  minHeight: '120px'
+                }}
+              >
                 <div style={{
                   width: 24, height: 24, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -153,6 +176,10 @@ export default function Calendar() {
                     return (
                       <div
                         key={evt.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('taskId', evt.id);
+                        }}
                         onMouseEnter={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           setHoveredEvent({ evt, p, timeStr, x: rect.left + rect.width / 2, y: rect.top });
@@ -162,7 +189,7 @@ export default function Calendar() {
                           display: 'flex', alignItems: 'center', gap: 6,
                           padding: '4px 8px', borderRadius: '4px',
                           background: 'var(--bg-4)', border: '1px solid var(--border)',
-                          cursor: 'pointer', textDecoration: 'none'
+                          cursor: 'grab', textDecoration: 'none'
                         }}
                       >
                         <div style={{ width: 14, height: 14, borderRadius: '50%', background: p.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#fff' }}>

@@ -10,6 +10,7 @@ import {
   Image as ImageIcon, Video, FileText, Music, 
   Link as LinkIcon, BarChart2, Activity, Play, XCircle 
 } from 'lucide-react';
+import LogsPanel from '../components/LogsPanel';
 
 // === SUB-COMPONENTS ===
 
@@ -577,42 +578,53 @@ export default function PersonaDetail() {
       </div>
 
       {/* DASHBOARD SECTIONS */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', marginTop: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px', marginTop: '16px' }}>
         
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Linked Accounts</h2>
-          </div>
-          <AccountsTab personaId={personaId} />
-        </section>
+        {/* Left Column: Action Centre & Overview */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <OverviewTab personaId={personaId} />
+          
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.5px' }}>Linked Accounts</h2>
+            </div>
+            <AccountsTab personaId={personaId} />
+          </section>
 
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Autonomous Content Engine</h2>
-            <button 
-              onClick={() => navigate('../strategies')}
-              style={{
-                background: 'var(--text)', color: 'var(--bg)', padding: '10px 20px',
-                borderRadius: 'var(--radius-sm)', fontSize: '14px', fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: '8px',
-                boxShadow: '0 4px 12px rgba(255, 255, 255, 0.1)',
-                transition: 'transform 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-            >
-              <Play size={16} fill="currentColor" /> Generate Strategy
-            </button>
-          </div>
-          <StrategiesTab personaId={personaId} />
-        </section>
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.5px' }}>Recent Output</h2>
+            </div>
+            <ContentTab personaId={personaId} />
+          </section>
+        </div>
 
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Recent Output</h2>
-          </div>
-          <ContentTab personaId={personaId} />
-        </section>
+        {/* Right Column: Live Logs & Strategies */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <section style={{ flex: 1, minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.5px', marginBottom: '16px' }}>Live Logs</h2>
+            <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              <LogsPanel inline={true} filterPersona={personaId} />
+            </div>
+          </section>
+          
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.5px' }}>Strategies</h2>
+              <button 
+                onClick={() => navigate('../strategies')}
+                style={{
+                  background: 'var(--text)', color: 'var(--bg)', padding: '6px 12px',
+                  borderRadius: 'var(--radius-sm)', fontSize: '12px', fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                <Play size={12} fill="currentColor" /> Generate
+              </button>
+            </div>
+            <StrategiesTab personaId={personaId} />
+          </section>
+        </div>
         
       </div>
     </div>

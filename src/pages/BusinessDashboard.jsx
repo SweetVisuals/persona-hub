@@ -155,8 +155,44 @@ export default function BusinessDashboard() {
           </Card>
         </div>
         
-        {/* Live Feed, Matrix, Logs */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
+        {/* Action Centre */}
+        {(() => {
+          const needsReviewAccounts = stats.activeAccountsData?.filter(a => ['captcha_required', 'error', 'pending_login'].includes(a.status)) || [];
+          if (needsReviewAccounts.length === 0) return null;
+          
+          return (
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: 'var(--amber)' }}>Action Centre: Needs Review</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                {needsReviewAccounts.map(acc => {
+                  const p = personas.find(p => p.id === acc.persona_id);
+                  return (
+                    <Card key={acc.id} className="glass" style={{ padding: 16, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: (p?.color || '#555') + '22', color: p?.color || '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {p?.avatar || '👤'}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p?.name || 'Unknown'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>@{acc.username}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
+                        {acc.platform} authentication issue. Action required to resume posting.
+                      </div>
+                      <button style={{ width: '100%', background: 'var(--amber)', color: '#000', padding: '8px 0', borderRadius: 'var(--radius-sm)', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+                        Resolve Issue
+                      </button>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Live Feed, Matrix */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           
           {/* Live Feed */}
           <div>
@@ -233,16 +269,14 @@ export default function BusinessDashboard() {
                 </tbody>
               </table>
             </Card>
+        </div>
+        
+        {/* Live Logs - Full Width at Bottom */}
+        <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', height: '400px' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Live System Logs</h2>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <LogsPanel inline={true} />
           </div>
-
-          {/* Live Logs */}
-          <div style={{ display: 'flex', flexDirection: 'column', height: '600px' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Live System Logs</h2>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <LogsPanel inline={true} />
-            </div>
-          </div>
-          
         </div>
       </div>
     </div>

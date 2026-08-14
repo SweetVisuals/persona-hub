@@ -821,24 +821,27 @@ async function runGeneratorEngine() {
              }
            });
 
-           // Auto-schedule Posting to TikTok
+           // Auto-schedule Posting based on Strategy Platform
            const { data: vidAccounts } = await supabase.from('social_accounts').select('id, platform').eq('persona_id', persona.id).eq('status', 'active');
            if (vidAccounts && vidAccounts.length > 0) {
-              const tiktokAcc = vidAccounts.find(a => a.platform === 'tiktok');
-              if (tiktokAcc) {
-                 // Schedule randomly in next 2 hours
-                 const scheduleTime = new Date(Date.now() + Math.random() * (2 * 60 * 60 * 1000)).toISOString();
+              const targetPlatform = strategy.platform === 'youtube_shorts' ? 'youtube' : strategy.platform || 'tiktok';
+              const account = vidAccounts.find(a => a.platform === targetPlatform);
+              if (account) {
+                 // Schedule randomly in next 24 hours to spread out content
+                 const scheduleTime = new Date(Date.now() + Math.random() * (24 * 60 * 60 * 1000)).toISOString();
                  
                  await supabase.from('automation_tasks').insert({
                     persona_id: persona.id,
-                    social_account_id: tiktokAcc.id,
-                    platform: 'tiktok',
+                    social_account_id: account.id,
+                    platform: targetPlatform,
                     content: finalUrl,
                     type: 'post_video',
                     status: 'scheduled',
                     scheduled_for: scheduleTime
                  });
-                 dbLog(persona.id, 'info', `Auto-scheduled video post to TikTok at ${scheduleTime}`);
+                 dbLog(persona.id, 'info', `Auto-scheduled autonomous video post to ${targetPlatform} at ${new Date(scheduleTime).toLocaleString()}`);
+              } else {
+                 dbLog(persona.id, 'warn', `Generated video, but no active ${targetPlatform} account found to schedule it.`);
               }
            }
 

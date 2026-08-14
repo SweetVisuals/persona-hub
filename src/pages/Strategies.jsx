@@ -11,6 +11,7 @@ export default function Strategies() {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [strategyMenuOpen, setStrategyMenuOpen] = useState(null);
+  const [wizardStep, setWizardStep] = useState(1);
 
   // Form State
   const [platform, setPlatform] = useState('tiktok');
@@ -118,6 +119,7 @@ export default function Strategies() {
 
   const resetForm = () => {
     setIsCreating(false);
+    setWizardStep(1);
     setEditingId(null);
     setStrategyName('');
     setSong('');
@@ -132,24 +134,19 @@ export default function Strategies() {
   const handleSave = async () => {
     if (!strategyName) return alert('Strategy Name is required!');
     
-    const settings = platform === 'tiktok' ? {
+    const settings = {
+      type: platform === 'youtube' ? 'youtube_shorts' : type,
       song,
-      postTitle,
-      postDesc,
+      postTitle: platform === 'youtube' ? (ytClickbait ? 'Auto-Clickbait' : 'Static') : postTitle,
+      postDesc: platform === 'youtube' ? ytDesc : postDesc,
       autoHashtags,
       maxHashtags,
-      type,
-      fontSize,
-      aspectRatio,
-      slideCount: type === 'slideshow' ? slideCount : undefined,
-      slides: type === 'slideshow' ? slides : undefined
-    } : {
-      type: 'youtube_shorts',
-      clickbaitTitle: ytClickbait,
-      description: ytDesc,
-      autoHashtags,
-      maxHashtags,
-      audioSource
+      audioSource,
+      fontSize: platform !== 'youtube' ? fontSize : undefined,
+      aspectRatio: platform !== 'youtube' ? aspectRatio : undefined,
+      slideCount: (platform !== 'youtube' && type === 'slideshow') ? slideCount : undefined,
+      slides: (platform !== 'youtube' && type === 'slideshow') ? slides : undefined,
+      clickbaitTitle: ytClickbait
     };
 
     try {
@@ -200,77 +197,58 @@ export default function Strategies() {
 
       {isCreating ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, alignItems: 'start' }}>
-          {/* Left Side: Builder */}
+          {/* Left Side: Builder Wizard */}
           <Card className="glass" style={{ padding: 32 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 24 }}>{editingId ? 'Edit Strategy' : 'Strategy Builder'}</h2>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Platform</label>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div onClick={() => setPlatform('tiktok')} style={{ flex: 1, padding: '12px', border: `1px solid ${platform === 'tiktok' ? 'var(--accent)' : 'var(--border)'}`, background: platform === 'tiktok' ? 'var(--accent-dim)' : 'var(--bg-3)', color: platform === 'tiktok' ? 'var(--accent)' : 'var(--text-2)', borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600 }}>
-                    <Smartphone size={18} /> TikTok
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{editingId ? 'Edit Strategy' : 'Strategy Wizard'}</h2>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ width: 30, height: 4, borderRadius: 2, background: wizardStep >= 1 ? 'var(--accent)' : 'var(--border)' }} />
+                <div style={{ width: 30, height: 4, borderRadius: 2, background: wizardStep >= 2 ? 'var(--accent)' : 'var(--border)' }} />
+                <div style={{ width: 30, height: 4, borderRadius: 2, background: wizardStep >= 3 ? 'var(--accent)' : 'var(--border)' }} />
+              </div>
+            </div>
+
+            {/* STEP 1: CORE SETUP */}
+            {wizardStep === 1 && (
+              <div className="wizard-step">
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>Step 1: Core Setup</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Platform</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                      <div onClick={() => setPlatform('tiktok')} style={{ flex: 1, minWidth: 100, padding: '12px', border: `1px solid ${platform === 'tiktok' ? 'var(--accent)' : 'var(--border)'}`, background: platform === 'tiktok' ? 'var(--accent-dim)' : 'var(--bg-3)', color: platform === 'tiktok' ? 'var(--accent)' : 'var(--text-2)', borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600 }}>
+                        <Smartphone size={18} /> TikTok
+                      </div>
+                      <div onClick={() => setPlatform('youtube')} style={{ flex: 1, minWidth: 100, padding: '12px', border: `1px solid ${platform === 'youtube' ? 'var(--red)' : 'var(--border)'}`, background: platform === 'youtube' ? 'rgba(255,0,0,0.1)' : 'var(--bg-3)', color: platform === 'youtube' ? 'var(--red)' : 'var(--text-2)', borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600 }}>
+                        <PlaySquare size={18} /> Shorts
+                      </div>
+                      <div onClick={() => setPlatform('reels')} style={{ flex: 1, minWidth: 100, padding: '12px', border: `1px solid ${platform === 'reels' ? '#E1306C' : 'var(--border)'}`, background: platform === 'reels' ? 'rgba(225, 48, 108, 0.1)' : 'var(--bg-3)', color: platform === 'reels' ? '#E1306C' : 'var(--text-2)', borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600 }}>
+                        <Video size={18} /> Reels
+                      </div>
+                    </div>
                   </div>
-                  <div onClick={() => setPlatform('youtube')} style={{ flex: 1, padding: '12px', border: `1px solid ${platform === 'youtube' ? 'var(--red)' : 'var(--border)'}`, background: platform === 'youtube' ? 'rgba(255,0,0,0.1)' : 'var(--bg-3)', color: platform === 'youtube' ? 'var(--red)' : 'var(--text-2)', borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 600 }}>
-                    <PlaySquare size={18} /> YT Shorts
+                  
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Assign Persona</label>
+                    <select value={personaId} onChange={e => setPersonaId(e.target.value)} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none' }}>
+                      <option value="">Unassigned (Global)</option>
+                      {personas.map(p => <option key={p.id} value={p.id}>{p.name} ({p.handle})</option>)}
+                    </select>
                   </div>
                 </div>
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Assign Persona</label>
-                <select value={personaId} onChange={e => setPersonaId(e.target.value)} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none' }}>
-                  <option value="">Unassigned (Global)</option>
-                  {personas.map(p => <option key={p.id} value={p.id}>{p.name} ({p.handle})</option>)}
-                </select>
-              </div>
-            </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Strategy Name</label>
-              <input value={strategyName} onChange={e => setStrategyName(e.target.value)} placeholder="e.g. Chill.. it's just a song" style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }} />
-            </div>
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Strategy Name</label>
+                  <input value={strategyName} onChange={e => setStrategyName(e.target.value)} placeholder="e.g. Chill.. it's just a song" style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }} />
+                </div>
+              </div>
+            )}
 
-            {platform === 'tiktok' ? (
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>TikTok Settings</h3>
+            {/* STEP 2: CONTENT RULES */}
+            {wizardStep === 2 && (
+              <div className="wizard-step">
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>Step 2: Content Rules</h3>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Song (Audio Override)</label>
-                    <input value={song} onChange={e => setSong(e.target.value)} placeholder="SELFISH - Mani Raé" style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Post Title (Caption)</label>
-                    <input value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="BLOW THIS UP!!!" style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }} />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Post Description</label>
-                  <textarea value={postDesc} onChange={e => setPostDesc(e.target.value)} placeholder="SELFISH - Mani Raé" style={{ width: '100%', height: 80, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, resize: 'none' }} />
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Audio Source (Lyrics Generation)</label>
-                  <select value={audioSource} onChange={e => setAudioSource(e.target.value)} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none', WebkitAppearance: 'none' }}>
-                    <option value="latest">Latest Release</option>
-                    <option value="best">Best Release (Most Popular)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>This strategy will repurpose scraped background videos into lyric videos using the selected audio source.</div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 32 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={autoHashtags} onChange={e => setAutoHashtags(e.target.checked)} style={{ width: 16, height: 16 }} />
-                    Auto-generate Hashtags (Trending)
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, opacity: autoHashtags ? 1 : 0.5 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600 }}>Max Hashtags: {maxHashtags}</span>
-                    <input type="range" min="0" max="25" value={maxHashtags} onChange={e => setMaxHashtags(e.target.value)} disabled={!autoHashtags} style={{ flex: 1 }} />
-                  </div>
-                </div>
-
                 <div style={{ marginBottom: 24 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 12 }}>Content Format</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -285,9 +263,8 @@ export default function Strategies() {
                   </div>
                 </div>
 
-                {/* SLIDESHOW BUILDER */}
                 {type === 'slideshow' && (
-                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginBottom: 24 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent)', fontWeight: 700 }}>
                         <ImageIcon size={20} /> Slideshow Editor
@@ -297,12 +274,8 @@ export default function Strategies() {
                         <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '6px', borderRadius: '4px', color: 'var(--text)', outline: 'none' }}>
                           <option value="9:16">9:16</option>
                           <option value="3:4">3:4</option>
-                          <option value="4:3">4:3</option>
-                          <option value="4:5">4:5</option>
                           <option value="1:1">1:1</option>
                         </select>
-                        <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', marginLeft: 16 }}>Size (px)</span>
-                        <input type="number" value={fontSize} onChange={e => setFontSize(e.target.value)} style={{ width: 60, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '6px', borderRadius: '4px', color: 'var(--text)', textAlign: 'center' }} />
                         <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', marginLeft: 16 }}>Slides</span>
                         <input type="number" min="1" max="10" value={slideCount} onChange={e => handleSlideCountChange(e.target.value)} style={{ width: 60, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '6px', borderRadius: '4px', color: 'var(--text)', textAlign: 'center' }} />
                       </div>
@@ -315,10 +288,9 @@ export default function Strategies() {
                             {i + 1}
                           </div>
                           <textarea 
-                            value={text} 
-                            onChange={e => updateSlide(i, e.target.value)} 
-                            placeholder="Text for this slide... (Use Enter for new line)"
-                            style={{ flex: 1, height: 80, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: 14, resize: 'vertical', fontFamily: 'Inter', fontWeight: 700 }}
+                            value={text} onChange={e => updateSlide(i, e.target.value)} 
+                            placeholder="Text for this slide..."
+                            style={{ flex: 1, height: 60, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: 14, resize: 'vertical', fontFamily: 'Inter', fontWeight: 700 }}
                           />
                         </div>
                       ))}
@@ -326,48 +298,74 @@ export default function Strategies() {
                   </div>
                 )}
 
-                {/* VIDEO FORMAT */}
-                {type === 'video' && (
-                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <Video size={32} color="var(--text-3)" style={{ margin: '0 auto 12px' }} />
-                    <div style={{ fontSize: 14, color: 'var(--text-2)' }}>Video overlay settings coming soon! (Foundation prepared)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Song / Audio Source</label>
+                    <select value={audioSource} onChange={e => setAudioSource(e.target.value)} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none' }}>
+                      <option value="latest">Latest Release (Scraped)</option>
+                      <option value="best">Most Popular Release</option>
+                      <option value="custom">Custom URL</option>
+                    </select>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>YouTube Shorts Settings</h3>
-                
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={ytClickbait} onChange={e => setYtClickbait(e.target.checked)} style={{ width: 16, height: 16 }} />
-                    Auto-generate Clickbait Titles
-                  </label>
-                  <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4, marginLeft: 24 }}>Dynamically creates unique, high-CTR titles for every Short instead of a static title.</div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Auto-Title (AI)</label>
+                    <select value={ytClickbait ? 'yes' : 'no'} onChange={e => setYtClickbait(e.target.value === 'yes')} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none' }}>
+                      <option value="yes">Yes, generate high-CTR titles</option>
+                      <option value="no">No, use static template</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Description Template</label>
-                  <textarea value={ytDesc} onChange={e => setYtDesc(e.target.value)} placeholder="Available on Spotify now!" style={{ width: '100%', height: 100, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, resize: 'vertical' }} />
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={autoHashtags} onChange={e => setAutoHashtags(e.target.checked)} style={{ width: 16, height: 16 }} />
-                    Auto-generate Hashtags
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, opacity: autoHashtags ? 1 : 0.5 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600 }}>Max: {maxHashtags}</span>
-                    <input type="range" min="0" max="25" value={maxHashtags} onChange={e => setMaxHashtags(e.target.value)} disabled={!autoHashtags} style={{ flex: 1 }} />
-                  </div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Base Description Template</label>
+                  <textarea value={postDesc} onChange={e => setPostDesc(e.target.value)} placeholder="Available on all platforms..." style={{ width: '100%', height: 80, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, resize: 'none' }} />
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-              <button onClick={resetForm} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: '20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', padding: '10px 24px', borderRadius: '20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CheckCircle size={18} /> {editingId ? 'Update Strategy' : 'Save Strategy'}
+            {/* STEP 3: SCHEDULING RULES */}
+            {wizardStep === 3 && (
+              <div className="wizard-step">
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 20 }}>Step 3: Scheduling & Posting</h3>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 32 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={autoHashtags} onChange={e => setAutoHashtags(e.target.checked)} style={{ width: 16, height: 16 }} />
+                    Auto-generate Hashtags (Trending AI)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, opacity: autoHashtags ? 1 : 0.5 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600 }}>Max Tags: {maxHashtags}</span>
+                    <input type="range" min="0" max="25" value={maxHashtags} onChange={e => setMaxHashtags(e.target.value)} disabled={!autoHashtags} style={{ flex: 1 }} />
+                  </div>
+                </div>
+
+                <Card style={{ background: 'var(--bg-3)', border: '1px dashed var(--border)', padding: 24, textAlign: 'center', marginBottom: 24 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Autonomous Engine Behavior</h4>
+                  <p style={{ fontSize: 13, color: 'var(--text-2)' }}>This strategy will be executed automatically by the Content Engine on Hetzner based on optimal posting times and limits. It will automatically populate your Calendar.</p>
+                </Card>
+              </div>
+            )}
+
+            {/* WIZARD CONTROLS */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 24 }}>
+              <button 
+                onClick={() => {
+                  if (wizardStep === 1) resetForm();
+                  else setWizardStep(wizardStep - 1);
+                }}
+                style={{ padding: '10px 20px', borderRadius: 'var(--radius)', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {wizardStep === 1 ? 'Cancel' : 'Back'}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  if (wizardStep < 3) setWizardStep(wizardStep + 1);
+                  else handleSave();
+                }}
+                style={{ padding: '10px 24px', borderRadius: 'var(--radius)', background: 'var(--text)', color: 'var(--bg)', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+              >
+                {wizardStep === 3 ? (editingId ? 'Save Strategy' : 'Create Strategy') : 'Next Step'}
               </button>
             </div>
           </Card>
