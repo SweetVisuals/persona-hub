@@ -31,9 +31,10 @@ export default function Strategies() {
   const [slideCount, setSlideCount] = useState(3);
   const [slides, setSlides] = useState(["Chill.. it's just a song", "I don't care.. TURN IT UP!!", "SELFISH - Mani Raé\nAvailable on all platforms"]);
 
-  // YouTube Specific
+  // YT Settings
   const [ytClickbait, setYtClickbait] = useState(true);
   const [ytDesc, setYtDesc] = useState('');
+  const [audioSource, setAudioSource] = useState('latest');
 
   useEffect(() => {
     const fetchInit = async () => {
@@ -99,6 +100,7 @@ export default function Strategies() {
       setYtDesc(s.description || '');
       setAutoHashtags(s.autoHashtags ?? true);
       setMaxHashtags(s.maxHashtags || 15);
+      setAudioSource(s.audioSource || 'latest');
     }
   };
 
@@ -124,6 +126,7 @@ export default function Strategies() {
     setType('slideshow');
     setSlides(["Chill.. it's just a song", "I don't care.. TURN IT UP!!", "SELFISH - Mani Raé\nAvailable on all platforms"]);
     setSlideCount(3);
+    setAudioSource('latest');
   };
 
   const handleSave = async () => {
@@ -141,10 +144,12 @@ export default function Strategies() {
       slideCount: type === 'slideshow' ? slideCount : undefined,
       slides: type === 'slideshow' ? slides : undefined
     } : {
+      type: 'youtube_shorts',
       clickbaitTitle: ytClickbait,
       description: ytDesc,
       autoHashtags,
-      maxHashtags
+      maxHashtags,
+      audioSource
     };
 
     try {
@@ -244,6 +249,15 @@ export default function Strategies() {
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Post Description</label>
                   <textarea value={postDesc} onChange={e => setPostDesc(e.target.value)} placeholder="SELFISH - Mani Raé" style={{ width: '100%', height: 80, background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, resize: 'none' }} />
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>Audio Source (Lyrics Generation)</label>
+                  <select value={audioSource} onChange={e => setAudioSource(e.target.value)} style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '14px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none', WebkitAppearance: 'none' }}>
+                    <option value="latest">Latest Release</option>
+                    <option value="best">Best Release (Most Popular)</option>
+                  </select>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>This strategy will repurpose scraped background videos into lyric videos using the selected audio source.</div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 32 }}>

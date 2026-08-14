@@ -11,7 +11,7 @@ function getVideoDuration(filePath) {
   });
 }
 
-async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16', trimOptions = null) {
+async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16', trimOptions = null, maxDuration = 15) {
   let duration = 0;
   if (trimOptions) {
     try {
@@ -86,7 +86,7 @@ async function processVideo(inputPath, outputPath, audioPath = null, srtPath = n
     command
       .videoFilters(filters)
       .outputOptions(audioPath ? ['-c:v libx264', '-preset fast', '-c:a aac', '-map 0:v:0', '-map 1:a:0'] : ['-c:v libx264', '-preset fast'])
-      .setDuration(15) // Limit to 15 seconds for short form
+      .setDuration(maxDuration) // Limit duration
       .on('end', () => {
         console.log(`[VIDEO PROCESSOR] Successfully saved to ${outputPath}`);
         resolve(outputPath);

@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const os = require('os');
+const { getRandomProxy } = require('./proxyHelper');
 
 /**
  * Downloads a video using yt-dlp.
@@ -20,9 +21,11 @@ async function scrapeVideo(url, cookieString = null) {
     output: outputPath,
     format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
     noPlaylist: true,
-    extractorArgs: 'youtube:player-client=android,web',
+    extractorArgs: 'youtube:player-client=web',
     ffmpegLocation: require('path').dirname(require('ffmpeg-ffprobe-static').ffmpegPath)
   };
+  const proxy = await getRandomProxy();
+  if (proxy) options.proxy = proxy;
 
   let cookieFilePath = null;
   if (cookieString) {
@@ -57,7 +60,6 @@ async function scrapeVideo(url, cookieString = null) {
       fs.unlinkSync(cookieFilePath);
     }
     
-    // The actual file might have .mp4 or .webm extension
     const files = fs.readdirSync(tmpDir);
     const downloadedFile = files.find(f => f.startsWith(`video_${fileId}.`));
     if (!downloadedFile) throw new Error("Downloaded video file not found in temp directory");
@@ -65,9 +67,27 @@ async function scrapeVideo(url, cookieString = null) {
     console.log(`[SCRAPER] Download complete: ${actualPath}`);
     return actualPath;
   } catch (err) {
-    if (cookieFilePath && fs.existsSync(cookieFilePath)) {
-      fs.unlinkSync(cookieFilePath);
+    if (options.proxy && (err.message.includes('proxy') || err.message.includes('ConnectTimeoutError'))) {
+      console.warn(`[SCRAPER] Proxy failed for ${url}. Retrying without proxy...`);
+      delete options.proxy;
+      try {
+        await youtubedl(url, options);
+        if (cookieFilePath && fs.existsSync(cookieFilePath)) {
+          fs.unlinkSync(cookieFilePath);
+        }
+        const files = fs.readdirSync(tmpDir);
+        const downloadedFile = files.find(f => f.startsWith(`video_${fileId}.`));
+        if (!downloadedFile) throw new Error("Downloaded video file not found in temp directory");
+        const actualPath = path.join(tmpDir, downloadedFile);
+        console.log(`[SCRAPER] Download complete (fallback): ${actualPath}`);
+        return actualPath;
+      } catch (fallbackErr) {
+        if (cookieFilePath && fs.existsSync(cookieFilePath)) fs.unlinkSync(cookieFilePath);
+        throw new Error(`yt-dlp fallback failed: ${fallbackErr.message}`);
+      }
     }
+    
+    if (cookieFilePath && fs.existsSync(cookieFilePath)) fs.unlinkSync(cookieFilePath);
     throw new Error(`yt-dlp failed: ${err.message}`);
   }
 }
@@ -90,9 +110,11 @@ async function scrapeAudio(url, cookieString = null) {
     audioFormat: 'mp3',
     audioQuality: 0,
     noPlaylist: true,
-    extractorArgs: 'youtube:player-client=android,web',
+    extractorArgs: 'youtube:player-client=web',
     ffmpegLocation: require('path').dirname(require('ffmpeg-ffprobe-static').ffmpegPath)
   };
+  const proxy = await getRandomProxy();
+  if (proxy) options.proxy = proxy;
 
   let cookieFilePath = null;
   if (cookieString) {
@@ -131,9 +153,22 @@ async function scrapeAudio(url, cookieString = null) {
     console.log(`[SCRAPER] Audio download complete: ${actualPath}`);
     return actualPath;
   } catch (err) {
-    if (cookieFilePath && fs.existsSync(cookieFilePath)) {
-      fs.unlinkSync(cookieFilePath);
+    if (options.proxy && (err.message.includes('proxy') || err.message.includes('ConnectTimeoutError'))) {
+      console.warn(`[SCRAPER] Proxy failed for audio ${url}. Retrying without proxy...`);
+      delete options.proxy;
+      try {
+        await youtubedl(url, options);
+        if (cookieFilePath && fs.existsSync(cookieFilePath)) fs.unlinkSync(cookieFilePath);
+        const actualPath = path.join(tmpDir, `audio_${fileId}.mp3`);
+        console.log(`[SCRAPER] Audio download complete (fallback): ${actualPath}`);
+        return actualPath;
+      } catch (fallbackErr) {
+        if (cookieFilePath && fs.existsSync(cookieFilePath)) fs.unlinkSync(cookieFilePath);
+        throw new Error(`yt-dlp audio fallback failed: ${fallbackErr.message}`);
+      }
     }
+
+    if (cookieFilePath && fs.existsSync(cookieFilePath)) fs.unlinkSync(cookieFilePath);
     throw new Error(`yt-dlp audio failed: ${err.message}`);
   }
 }

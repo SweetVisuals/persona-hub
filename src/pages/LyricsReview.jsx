@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Card from '../components/Card';
-import { CheckCircle, XCircle, Music, Edit3, Play, Pause, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Music, Edit3, Loader2, Trash2 } from 'lucide-react';
+import BratLyricGenerator from '../components/BratLyricGenerator';
 
 export default function LyricsReview() {
   const [extractions, setExtractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
+  
+  const [viewMode, setViewMode] = useState('review'); // 'review' or 'generator'
+  const [selectedAudioUrl, setSelectedAudioUrl] = useState('');
+  const [selectedLyrics, setSelectedLyrics] = useState('');
   
   useEffect(() => {
     fetchExtractions();
@@ -14,7 +19,7 @@ export default function LyricsReview() {
 
   const fetchExtractions = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('audio_extractions')
       .select('*')
       .order('created_at', { ascending: false });
@@ -35,14 +40,22 @@ export default function LyricsReview() {
   };
 
   const handleReject = async (id) => {
-    const { error } = await supabase
+    await supabase
       .from('audio_extractions')
       .update({ status: 'rejected' })
       .eq('id', id);
       
-    if (!error) {
-      setExtractions(prev => prev.map(e => e.id === id ? { ...e, status: 'rejected' } : e));
-    }
+    setExtractions(prev => prev.map(e => e.id === id ? { ...e, status: 'rejected' } : e));
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to permanently delete this item?')) return;
+    await supabase
+      .from('audio_extractions')
+      .delete()
+      .eq('id', id);
+      
+    setExtractions(prev => prev.filter(e => e.id !== id));
   };
   
   const handleLyricsChange = (id, newLyrics) => {
@@ -58,31 +71,73 @@ export default function LyricsReview() {
   });
 
   return (
-    <div style={{ padding: '40px 24px', maxWidth: 1000, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Lyrics Review</h1>
-      <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 32 }}>Review, edit, and approve extracted audio lyrics.</p>
+    <div style={{ padding: '40px 24px', maxWidth: viewMode === 'generator' ? 1200 : 1000, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Lyrics & Caption Studio</h1>
+      <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 32 }}>Review transcription results or bake customized synced caption overlays.</p>
 
-      {/* Tabs */}
+      {/* Main Top Navigation */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
-        {['All', 'Pending Review', 'Approved', 'Rejected'].map(t => (
-          <button
-            key={t}
-            onClick={() => setFilter(t)}
-            style={{
-              background: filter === t ? 'var(--text)' : 'transparent',
-              color: filter === t ? 'var(--bg)' : 'var(--text-2)',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: 'var(--radius)',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {t}
-          </button>
-        ))}
+        <button
+          onClick={() => setViewMode('review')}
+          style={{
+            background: viewMode === 'review' ? 'var(--text)' : 'transparent',
+            color: viewMode === 'review' ? 'var(--bg)' : 'var(--text-2)',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: 'var(--radius)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          Review Transcriptions
+        </button>
+        <button
+          onClick={() => {
+            setSelectedAudioUrl('');
+            setSelectedLyrics('');
+            setViewMode('generator');
+          }}
+          style={{
+            background: viewMode === 'generator' ? 'var(--text)' : 'transparent',
+            color: viewMode === 'generator' ? 'var(--bg)' : 'var(--text-2)',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: 'var(--radius)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          Brat Video Generator
+        </button>
       </div>
+
+      {viewMode === 'generator' ? (
+        <BratLyricGenerator initialAudioUrl={selectedAudioUrl} initialLyrics={selectedLyrics} />
+      ) : (
+        <>
+          {/* Status Tabs */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+            {['All', 'Pending Review', 'Approved', 'Rejected'].map(t => (
+              <button
+                key={t}
+                onClick={() => setFilter(t)}
+                style={{
+                  background: filter === t ? 'var(--bg-3)' : 'transparent',
+                  color: filter === t ? 'var(--text)' : 'var(--text-3)',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
@@ -146,22 +201,63 @@ export default function LyricsReview() {
               </div>
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => handleReject(ext.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'transparent',
-                    border: '1px solid var(--red)',
-                    color: 'var(--red)',
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <XCircle size={16} /> Reject
-                </button>
+                {ext.status === 'approved' && ext.mp3_url && (
+                  <button
+                    onClick={() => {
+                      setSelectedAudioUrl(ext.mp3_url);
+                      setSelectedLyrics(ext.lyrics || '');
+                      setViewMode('generator');
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: '#8ACE00',
+                      border: 'none',
+                      color: '#000',
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Music size={16} /> Generate Video Overlay
+                  </button>
+                )}
+                {ext.status === 'rejected' ? (
+                  <button
+                    onClick={() => handleDelete(ext.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'var(--red)',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleReject(ext.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'transparent',
+                      border: '1px solid var(--red)',
+                      color: 'var(--red)',
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <XCircle size={16} /> Reject
+                  </button>
+                )}
                 <button
                   onClick={() => handleApprove(ext.id, ext.lyrics)}
                   style={{
@@ -183,6 +279,8 @@ export default function LyricsReview() {
           ))}
         </div>
       )}
+    </>
+  )}
       <style>{`
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }

@@ -1,8 +1,7 @@
-const { chromium } = require('playwright-extra');
-const stealth = require('puppeteer-extra-plugin-stealth')();
-chromium.use(stealth);
+const { Camoufox } = require('camoufox-js');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const { getRandomProxy } = require('./proxyHelper');
 
 /**
  * Searches Pinterest for a given query and extracts the top Pin URLs authentically using a synced session cookie.
@@ -13,22 +12,10 @@ const fs = require('fs');
  */
 async function scrapePinterestSearch(query, cookieString, limit = 20) {
   console.log(`[SOURCING] Booting authenticated headless browser for Pinterest search: "${query}"`);
-  const browser = await chromium.launch({ 
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu',
-      '--disable-blink-features=AutomationControlled'
-    ]
-  });
-  const context = await browser.newContext();
+  const browserArgs = { headless: true };
+  const browser = await Camoufox(browserArgs);
+  const page = await browser.newPage();
+  const context = page.context();
   
   if (cookieString) {
     console.log(`[SOURCING] Injecting synced session cookies into browser...`);
@@ -65,7 +52,7 @@ async function scrapePinterestSearch(query, cookieString, limit = 20) {
     }
   }
 
-  const page = await context.newPage();
+
   const results = [];
   
   try {
@@ -120,11 +107,14 @@ async function scrapePinterestSearch(query, cookieString, limit = 20) {
     console.error(`[SOURCING ERROR] Failed to scrape Pinterest for "${query}":`, error.message);
     return [];
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 }
 
 async function scrapeYouTubeSearch(query, limit = 1, extractMode = 'latest', cookieString = null) {
+  const proxy = await getRandomProxy();
   return new Promise((resolve, reject) => {
     const finalQuery = query;
     console.log(`[SOURCING] Starting yt-dlp search for YouTube: "${finalQuery}"`);
@@ -146,6 +136,7 @@ async function scrapeYouTubeSearch(query, limit = 1, extractMode = 'latest', coo
       '--no-playlist',
       '--extractor-args', 'youtube:player-client=android,web'
     ];
+    if (proxy) args.push('--proxy', proxy);
     
     let tmpCookieFile = null;
     if (cookieString) {
@@ -199,29 +190,45 @@ async function scrapeYouTubeSearch(query, limit = 1, extractMode = 'latest', coo
           }
         } catch(e) {}
       }
-      console.log(`[SOURCING] Scraped ${results.length} videos from YouTube for "${finalQuery}"`);
+      const seenUrls = new Set();
+      const uniqueResults = [];
+      for (const res of results) {
+        if (!seenUrls.has(res.url)) {
+          seenUrls.add(res.url);
+          uniqueResults.push(res);
+        }
+      }
+      console.log(`[SOURCING] Scraped ${uniqueResults.length} videos from YouTube for "${finalQuery}"`);
       if (tmpCookieFile && require('fs').existsSync(tmpCookieFile)) {
         require('fs').unlinkSync(tmpCookieFile);
       }
-      resolve(results.slice(0, limit));
+      resolve(uniqueResults.slice(0, limit));
     });
   });
 }
 
 async function scrapeTikTokSearch(query, cookieString, limit = 1, extractMode = 'latest') {
   console.log(`[SOURCING] Booting authenticated headless browser for TikTok search: "${query}"`);
-  const browser = await chromium.launch({ 
-    headless: true,
-    args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--disable-blink-features=AutomationControlled'
-    ]
+  const proxy = await getRandomProxy();
+  const browserArgs = { headless: true };
+  if (proxy) {
+    browserArgs.proxy = { server: proxy };
+    console.log(`[SOURCING] Using proxy for TikTok: ${proxy.split('@').pop()}`);
+  }
+  const browser = await Camoufox(browserArgs);
+  const page = await browser.newPage();
+  
+  // Bandwidth Optimization: Block media and fonts since we only need metadata/URLs
+  await page.route('**/*', (route) => {
+    const type = route.request().resourceType();
+    if (['image', 'media', 'font'].includes(type)) {
+      route.abort();
+    } else {
+      route.continue();
+    }
   });
-  const context = await browser.newContext();
+  
+  const context = page.context();
   
   if (cookieString) {
     console.log(`[SOURCING] Injecting synced session cookies into browser...`);
@@ -247,7 +254,7 @@ async function scrapeTikTokSearch(query, cookieString, limit = 1, extractMode = 
     }
   }
 
-  const page = await context.newPage();
+
   
   // Block heavy assets to prevent OOM crashes on small servers
   await page.route('**/*', (route) => {
@@ -298,11 +305,14 @@ async function scrapeTikTokSearch(query, cookieString, limit = 1, extractMode = 
     console.error(`[SOURCING ERROR] Failed to scrape TikTok for "${query}":`, error.message);
     return [];
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 }
 
 async function scrapeYouTubeChannel(channelUrl, limit = 5, extractMode = 'latest', cookieString = null) {
+  const proxy = await getRandomProxy();
   return new Promise((resolve, reject) => {
     let finalUrl = channelUrl;
     // Don't append /videos if the user already provided a specific tab or if we just want to let yt-dlp handle it
@@ -319,6 +329,7 @@ async function scrapeYouTubeChannel(channelUrl, limit = 5, extractMode = 'latest
       '--playlist-end', limit.toString(),
       '--extractor-args', 'youtube:player-client=android,web'
     ];
+    if (proxy) args.push('--proxy', proxy);
     
     let tmpCookieFile = null;
     if (cookieString) {
@@ -377,22 +388,27 @@ async function scrapeYouTubeChannel(channelUrl, limit = 5, extractMode = 'latest
   });
 }
 
-async function scrapeYouTubeArtistAudio(channelUrl, strategy, limit = 1, cookieString = null) {
+async function scrapeYouTubeArtistAudio(channelUrl, strategy = 'latest', limit = 1, cookieString = null) {
+  const proxy = await getRandomProxy();
   return new Promise((resolve, reject) => {
     let finalUrl = channelUrl;
+    if (!finalUrl.includes('/videos') && !finalUrl.includes('/releases') && !finalUrl.includes('?')) {
+      finalUrl = finalUrl.replace(/\/$/, '') + '/releases';
+    }
     console.log(`[SOURCING] Starting yt-dlp artist audio scrape for YouTube: "${finalUrl}"`);
     
     const args = [
       finalUrl,
-      '--flat-playlist',
       '--dump-json',
       '--extractor-args', 'youtube:player-client=android,web'
     ];
     
     if (strategy === 'latest') {
       args.push('--playlist-end', limit.toString());
+      args.push('--flat-playlist');
     } else if (strategy === 'best') {
       args.push('--playlist-end', '20');
+      // Remove flat-playlist to get full metadata including view_count for sorting
     }
     
     let tmpCookieFile = null;
@@ -423,39 +439,63 @@ async function scrapeYouTubeArtistAudio(channelUrl, strategy, limit = 1, cookieS
     }
 
     const ytDlpPath = require('youtube-dl-exec/src/constants').YOUTUBE_DL_PATH;
-    const ytDlp = spawn(ytDlpPath, args);
-
-    let output = '';
-    ytDlp.stdout.on('data', (data) => { output += data.toString(); });
-    ytDlp.stderr.on('data', (data) => { console.error(`[yt-dlp stderr] ${data.toString().trim()}`); });
     
-    ytDlp.on('close', (code) => {
-      console.log(`[SOURCING] yt-dlp process exited with code ${code}`);
-      let results = [];
-      const lines = output.trim().split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed.url || parsed.webpage_url || parsed.original_url) {
-             const vUrl = parsed.url || parsed.webpage_url || parsed.original_url;
-             results.push({ url: vUrl, title: parsed.title || 'youtube_audio', view_count: parsed.view_count || 0 });
+    const runYtDlp = (useProxy) => {
+      const currentArgs = [...args];
+      if (useProxy && proxy) currentArgs.push('--proxy', proxy);
+      
+      const ytDlp = spawn(ytDlpPath, currentArgs);
+      let output = '';
+      let errOutput = '';
+      
+      ytDlp.stdout.on('data', (data) => { output += data.toString(); });
+      ytDlp.stderr.on('data', (data) => { errOutput += data.toString(); console.error(`[yt-dlp stderr] ${data.toString().trim()}`); });
+      
+      ytDlp.on('close', (code) => {
+        console.log(`[SOURCING] yt-dlp process exited with code ${code}`);
+        
+        if (code !== 0 && useProxy && proxy && (errOutput.includes('proxy') || errOutput.includes('ConnectTimeoutError'))) {
+          console.warn(`[SOURCING] Proxy failed for artist audio scrape. Retrying without proxy...`);
+          return runYtDlp(false);
+        }
+        
+        let results = [];
+        const lines = output.trim().split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.url || parsed.webpage_url || parsed.original_url) {
+               const vUrl = parsed.url || parsed.webpage_url || parsed.original_url;
+               results.push({ url: vUrl, title: parsed.title || 'youtube_audio', view_count: parsed.view_count || 0 });
+            }
+          } catch(e) {}
+        }
+        
+        if (strategy === 'best') {
+          results.sort((a, b) => b.view_count - a.view_count);
+        }
+        
+        results = results.map(r => ({ url: r.url, title: r.title }));
+        
+        const seenUrls = new Set();
+        const uniqueResults = [];
+        for (const res of results) {
+          if (!seenUrls.has(res.url)) {
+            seenUrls.add(res.url);
+            uniqueResults.push(res);
           }
-        } catch(e) {}
-      }
-      
-      if (strategy === 'best') {
-        results.sort((a, b) => b.view_count - a.view_count);
-      }
-      
-      results = results.map(r => ({ url: r.url, title: r.title }));
-      
-      console.log(`[SOURCING] Scraped ${results.length} audios from YouTube artist "${channelUrl}"`);
-      if (tmpCookieFile && require('fs').existsSync(tmpCookieFile)) {
-        require('fs').unlinkSync(tmpCookieFile);
-      }
-      resolve(results.slice(0, limit));
-    });
+        }
+        
+        console.log(`[SOURCING] Scraped ${uniqueResults.length} audios from artist channel "${finalUrl}"`);
+        if (tmpCookieFile && require('fs').existsSync(tmpCookieFile)) {
+          require('fs').unlinkSync(tmpCookieFile);
+        }
+        resolve(uniqueResults.slice(0, limit));
+      });
+    };
+    
+    runYtDlp(true);
   });
 }
 

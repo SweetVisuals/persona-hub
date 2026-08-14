@@ -1,0 +1,1 @@
+const { NodeSSH } = require('node-ssh'); const ssh = new NodeSSH(); (async () => { await ssh.connect({ host: '5.75.252.100', username: 'root', password: 'PniPqbCEW4Lk' }); const r1 = await ssh.execCommand('free -h'); console.log('RAM:', r1.stdout); const r2 = await ssh.execCommand('docker ps -a | grep -i exit'); console.log('CRASHED DOCKER:', r2.stdout); process.exit(0); })();

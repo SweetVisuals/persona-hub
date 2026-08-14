@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import { 
   ChevronRight, Edit2, Power, Trash2, Plus, 
   Image as ImageIcon, Video, FileText, Music, 
-  Link as LinkIcon, BarChart2, Activity, Play 
+  Link as LinkIcon, BarChart2, Activity, Play, XCircle 
 } from 'lucide-react';
 
 // === SUB-COMPONENTS ===
@@ -22,7 +22,7 @@ function OverviewTab({ personaId }) {
     async function load() {
       // Parallel fetches for speed
       const [accsRes, stratsRes, filesRes, actsRes] = await Promise.all([
-        supabase.from('social_accounts').select('follower_count').eq('persona_id', personaId),
+        supabase.from('social_accounts').select('id, platform, username, status, follower_count').eq('persona_id', personaId),
         supabase.from('strategies').select('*', { count: 'exact', head: true }).eq('persona_id', personaId),
         supabase.from('content_files').select('*', { count: 'exact', head: true }).eq('persona_id', personaId),
         supabase.from('automation_tasks').select('*').eq('persona_id', personaId).order('created_at', { ascending: false }).limit(5)
@@ -34,6 +34,7 @@ function OverviewTab({ personaId }) {
         accounts: accs.length,
         strategies: stratsRes.count || 0,
         files: filesRes.count || 0,
+        needsReviewAccounts: accs.filter(a => a.status === 'captcha_required' || a.status === 'error')
       });
       setActivities(actsRes.data || []);
       setLoading(false);
@@ -41,10 +42,26 @@ function OverviewTab({ personaId }) {
     load();
   }, [personaId]);
 
+  const handleReconnect = async (acc) => {
+    const newPass = prompt(`Please enter the password for ${acc.platform} (@${acc.username}) to reconnect:`);
+    if (!newPass) return;
+    const { error } = await supabase.from('social_accounts').update({ session_cookie: newPass, status: 'pending_login' }).eq('id', acc.id);
+    if (error) alert('Failed to update account: ' + error.message);
+    else {
+      alert('Account updated. The system will try to connect again.');
+      setStats(prev => ({
+        ...prev,
+        needsReviewAccounts: prev.needsReviewAccounts.filter(a => a.id !== acc.id)
+      }));
+    }
+  };
+
   if (loading) return <div style={{ color: 'var(--text-3)' }}>Loading overview...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      
+      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
         {[
           { label: 'Total Reach', value: stats.reach.toLocaleString() },
@@ -52,45 +69,71 @@ function OverviewTab({ personaId }) {
           { label: 'Active Strategies', value: stats.strategies },
           { label: 'Content Files', value: stats.files }
         ].map((s, i) => (
-          <Card key={i} style={{ padding: '20px' }}>
-            <div style={{ color: 'var(--text-3)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+          <Card key={i} className="glass" style={{ padding: '24px 20px', transition: 'transform 0.2s', cursor: 'default' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+            <div style={{ color: 'var(--text-3)', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '12px' }}>
               {s.label}
             </div>
-            <div style={{ fontSize: '24px', fontFamily: '"Space Grotesk", sans-serif' }}>
+            <div style={{ fontSize: '32px', fontWeight: 800, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-1px' }}>
               {s.value}
             </div>
           </Card>
         ))}
       </div>
 
-      <div>
-        <h3 style={{ marginBottom: '16px', fontSize: '18px' }}>Recent Activity</h3>
-        <Card style={{ padding: '0' }}>
-          {activities.length === 0 ? (
-            <div style={{ padding: '24px', color: 'var(--text-3)' }}>No recent activity.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {activities.map((task, i) => (
-                <div key={task.id} style={{
-                  padding: '16px 24px',
-                  borderBottom: i < activities.length - 1 ? '1px solid var(--border)' : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Activity size={16} color="var(--text-3)" />
-                    <span style={{ fontSize: '14px' }}>{task.type || 'Automation Task'}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '32px' }}>
+        {/* Recent Activity */}
+        <div>
+          <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Recent Activity</h3>
+          <Card className="glass" style={{ padding: '0', overflow: 'hidden' }}>
+            {activities.length === 0 ? (
+              <div style={{ padding: '32px', color: 'var(--text-3)', textAlign: 'center', fontSize: 14 }}>No recent activity.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {activities.map((task, i) => (
+                  <div key={task.id} className="table-row-interactive" style={{
+                    padding: '20px 24px',
+                    borderBottom: i < activities.length - 1 ? '1px solid var(--border)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'background 0.2s', cursor: 'pointer'
+                  }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Activity size={18} color="var(--text-2)" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{task.type || 'Automation Task'}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>{new Date(task.created_at).toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <StatusBadge status={task.status} />
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <StatusBadge status={task.status} />
-                    <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>
-                      {new Date(task.created_at).toLocaleDateString()}
-                    </span>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Needs Review Widget */}
+        <div>
+          <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--amber)' }}>Needs Review</h3>
+          <Card className="glass" style={{ padding: '24px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {stats.needsReviewAccounts && stats.needsReviewAccounts.length > 0 ? (
+                stats.needsReviewAccounts.map(acc => (
+                  <div key={acc.id} style={{ background: 'var(--bg-2)', padding: '16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} className="review-card">
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', marginBottom: 8 }}>Authentication Issue</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.4, marginBottom: 12 }}>{acc.platform} connection for @{acc.username || personaId.substring(0, 5)} needs to be re-authenticated.</div>
+                    <button onClick={() => handleReconnect(acc)} style={{ width: '100%', fontSize: 13, background: 'var(--amber)', color: 'var(--bg)', padding: '8px 0', borderRadius: 'var(--radius-sm)', fontWeight: 700, border: 'none', cursor: 'pointer' }}>Reconnect Account</button>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div style={{ color: 'var(--text-3)', fontSize: 14, textAlign: 'center', padding: '16px' }}>No immediate actions required.</div>
+              )}
             </div>
-          )}
-        </Card>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -99,15 +142,40 @@ function OverviewTab({ personaId }) {
 function AccountsTab({ personaId }) {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form, setForm] = useState({ platform: 'tiktok', username: '', session_cookie: '' });
+  const navigate = useNavigate();
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from('social_accounts').select('*').eq('persona_id', personaId);
+    setAccounts(data || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase.from('social_accounts').select('*').eq('persona_id', personaId);
-      setAccounts(data || []);
-      setLoading(false);
-    }
     load();
   }, [personaId]);
+
+  const handleSaveAccount = async () => {
+    if (!form.username) return alert('Username is required');
+    
+    const { error } = await supabase.from('social_accounts').insert({
+      persona_id: personaId,
+      platform: form.platform,
+      username: form.username,
+      session_cookie: form.session_cookie,
+      status: 'active'
+    });
+    
+    if (error) {
+      alert('Error saving account: ' + error.message);
+    } else {
+      setIsModalOpen(false);
+      setForm({ platform: 'tiktok', username: '', session_cookie: '' });
+      load();
+    }
+  };
 
   if (loading) return <div style={{ color: 'var(--text-3)' }}>Loading accounts...</div>;
 
@@ -135,7 +203,9 @@ function AccountsTab({ personaId }) {
         </Card>
       ))}
 
-      <div style={{
+      <div 
+        onClick={() => setIsModalOpen(true)}
+        style={{
         border: '1px dashed var(--border-light)', borderRadius: 'var(--radius)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '24px', gap: '12px', color: 'var(--text-3)', cursor: 'pointer'
@@ -145,6 +215,56 @@ function AccountsTab({ personaId }) {
         </div>
         <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Add Account</span>
       </div>
+
+      {isModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24, backdropFilter: 'blur(8px)' }}>
+          <Card className="glass" style={{ width: 480, padding: 32, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: 20, margin: 0, fontWeight: 700 }}>Link Social Account</h2>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-2)', cursor: 'pointer' }}>
+                <XCircle size={24} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>Platform</label>
+                <select 
+                  value={form.platform} onChange={e => setForm({...form, platform: e.target.value})}
+                  style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }}
+                >
+                  <option value="tiktok">TikTok</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="pinterest">Pinterest</option>
+                  <option value="instagram">Instagram</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>Username / Handle</label>
+                <input 
+                  value={form.username} onChange={e => setForm({...form, username: e.target.value})}
+                  placeholder="@username"
+                  style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase' }}>Session Cookie (Optional)</label>
+                <textarea 
+                  value={form.session_cookie} onChange={e => setForm({...form, session_cookie: e.target.value})}
+                  placeholder="Paste your exported Netscape cookies or session token here..."
+                  style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '12px 16px', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, minHeight: 80, resize: 'vertical' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>Providing a session cookie allows the automation engine to act on your behalf.</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: 'var(--radius)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSaveAccount} style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', padding: '10px 24px', borderRadius: 'var(--radius)', fontWeight: 700, cursor: 'pointer' }}>Save Account</button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,15 +287,6 @@ function StrategiesTab({ personaId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={() => navigate('../strategies')} style={{
-          background: 'var(--text)', color: 'var(--bg)', padding: '8px 16px',
-          borderRadius: 'var(--radius-sm)', fontSize: '14px', fontWeight: 500,
-          display: 'flex', alignItems: 'center', gap: '8px'
-        }}>
-          <Plus size={16} /> Create Strategy
-        </button>
-      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         {strategies.map(strat => (
@@ -209,11 +320,24 @@ function ContentTab({ personaId }) {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('content_files').select('*').eq('persona_id', personaId);
+      const { data } = await supabase.from('content_files').select('*').eq('persona_id', personaId).order('created_at', { ascending: false });
       setFiles(data || []);
       setLoading(false);
     }
     load();
+
+    const channel = supabase.channel(`public:content_files:persona_id=eq.${personaId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'content_files', filter: `persona_id=eq.${personaId}` }, payload => {
+        setFiles(prev => [payload.new, ...prev]);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'content_files', filter: `persona_id=eq.${personaId}` }, payload => {
+        setFiles(prev => prev.filter(f => f.id !== payload.old.id));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [personaId]);
 
   if (loading) return <div style={{ color: 'var(--text-3)' }}>Loading content...</div>;
@@ -365,13 +489,11 @@ function AnalyticsTab({ personaId }) {
 export default function PersonaDetail() {
   const { businessId, personaId } = useParams();
   const navigate = useNavigate();
-  // We use optional chaining for useBusiness in case it's not implemented yet
   const businessContext = useBusiness?.();
   const business = businessContext?.business || { name: 'Business', id: businessId };
   
   const [persona, setPersona] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('Overview');
 
   useEffect(() => {
     async function fetchPersona() {
@@ -389,8 +511,6 @@ export default function PersonaDetail() {
   if (!persona) {
     return <div style={{ padding: '40px', color: 'var(--red)' }}>Persona not found.</div>;
   }
-
-  const tabs = ['Overview', 'Accounts', 'Strategies', 'Content', 'Sources', 'Analytics'];
 
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -417,7 +537,7 @@ export default function PersonaDetail() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <h1 style={{ fontSize: '32px', lineHeight: 1 }}>{persona.name}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ color: 'var(--text-3)' }}>@{persona.handle || persona.name?.toLowerCase().replace(/\s+/g, '')}</span>
+                <span style={{ color: 'var(--text-3)' }}>@{persona.handle?.replace(/^@/, '') || persona.name?.toLowerCase().replace(/\s+/g, '')}</span>
                 <StatusBadge status={persona.status || 'active'} />
               </div>
             </div>
@@ -456,35 +576,44 @@ export default function PersonaDetail() {
         </div>
       </div>
 
-      {/* TABS BAR */}
-      <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border)' }}>
-        {tabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              background: 'transparent',
-              padding: '12px 0',
-              fontSize: '15px',
-              fontWeight: 500,
-              color: activeTab === tab ? 'var(--text)' : 'var(--text-3)',
-              borderBottom: activeTab === tab ? '2px solid var(--text)' : '2px solid transparent',
-              marginBottom: '-1px'
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      {/* DASHBOARD SECTIONS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', marginTop: '16px' }}>
+        
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Linked Accounts</h2>
+          </div>
+          <AccountsTab personaId={personaId} />
+        </section>
 
-      {/* TAB CONTENT */}
-      <div>
-        {activeTab === 'Overview' && <OverviewTab personaId={personaId} />}
-        {activeTab === 'Accounts' && <AccountsTab personaId={personaId} />}
-        {activeTab === 'Strategies' && <StrategiesTab personaId={personaId} />}
-        {activeTab === 'Content' && <ContentTab personaId={personaId} />}
-        {activeTab === 'Sources' && <SourcesTab personaId={personaId} />}
-        {activeTab === 'Analytics' && <AnalyticsTab personaId={personaId} />}
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Autonomous Content Engine</h2>
+            <button 
+              onClick={() => navigate('../strategies')}
+              style={{
+                background: 'var(--text)', color: 'var(--bg)', padding: '10px 20px',
+                borderRadius: 'var(--radius-sm)', fontSize: '14px', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: '8px',
+                boxShadow: '0 4px 12px rgba(255, 255, 255, 0.1)',
+                transition: 'transform 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+            >
+              <Play size={16} fill="currentColor" /> Generate Strategy
+            </button>
+          </div>
+          <StrategiesTab personaId={personaId} />
+        </section>
+
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>Recent Output</h2>
+          </div>
+          <ContentTab personaId={personaId} />
+        </section>
+        
       </div>
     </div>
   );

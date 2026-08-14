@@ -11,6 +11,7 @@ const { downloadImage } = require('./src/imageScraper');
 const { resolveChannelName } = require('./src/channelResolver');
 const { processPendingLogins, processPendingOAuth } = require('./src/authWorker');
 const { processAudioExtractions } = require('./src/audioWorker');
+const { generateAutonomousStrategies } = require('./src/strategiser');
 const fs = require('fs');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -53,6 +54,16 @@ cron.schedule('* * * * *', async () => {
   }
 });
 processAudioExtractions(); // Run once on startup
+
+// --- 0.6 Autonomous Strategiser Engine (Runs every 6 hours) ---
+cron.schedule('0 */6 * * *', async () => {
+  try {
+    await generateAutonomousStrategies();
+  } catch (err) {
+    console.error('Strategiser Error:', err);
+  }
+});
+// generateAutonomousStrategies(); // Optional: run on startup
 
 // --- 1. Analytics Tracking Cron Job (Runs every 24 hours at midnight) ---
 cron.schedule('0 0 * * *', async () => {
@@ -196,6 +207,19 @@ async function runAutonomousSourcing() {
           }
           
           dbLog(source.persona_id, 'info', `Sourcing new content for query: "${source.url}"`);
+          
+          if ((source.platform === 'youtube' || source.platform === 'tiktok') && source.persona_id) {
+             const { count } = await supabase
+               .from('files')
+               .select('*', { count: 'exact', head: true })
+               .eq('persona_id', source.persona_id)
+               .like('url', '%raw_footage%')
+               .like('name', '%.mp4');
+             if (count >= 10) {
+                 dbLog(source.persona_id, 'info', `Skipping ${source.platform} scrape: backlog contains ${count} unprocessed MP4s.`);
+                 continue;
+             }
+          }
           
           let scrapedUrls = [];
           const extractMode = source.extract_mode || 'latest';
@@ -452,7 +476,7 @@ async function runArtistAudioSourcing() {
   }
 }
 
-cron.schedule('*/10 * * * *', runArtistAudioSourcing);
+cron.schedule('*/15 * * * *', runArtistAudioSourcing);
 setTimeout(runArtistAudioSourcing, 15000);
 
 // --- 3. Generator Engine (Builds Slideshows & Videos based on Strategies) ---
@@ -616,6 +640,91 @@ async function runGeneratorEngine() {
           dbLog(persona.id, 'success', `Generated .slide file for "${strategy.name}" in File Browser! Cleared ${selectedFiles.length} original images to save storage.`);
         } catch (e) {
           dbLog(persona.id, 'error', `Failed to generate slideshow for "${strategy.name}": ${e.message}`);
+        }
+      } else if (strategy.settings && strategy.settings.type === 'youtube_shorts') {
+        const persona = strategy.personas;
+        dbLog(persona.id, 'info', `Running YouTube Shorts Lyric Video Strategy: "${strategy.name}"...`);
+
+        // Get random raw footage
+        const { data: videoFiles } = await supabase
+          .from('files')
+          .select('id, url')
+          .eq('persona_id', persona.id)
+          .like('url', '%raw_footage%')
+          .like('name', '%.mp4');
+
+        if (!videoFiles || videoFiles.length === 0) {
+          dbLog(persona.id, 'warn', `Missing background video for strategy: "${strategy.name}"`);
+          continue;
+        }
+
+        const bgVideo = shuffleArray([...videoFiles])[0];
+
+        const audioSourcePref = strategy.settings.audioSource || 'latest';
+        let audioQuery = supabase.from('audio_extractions').select('*').eq('persona_id', persona.id).eq('status', 'approved');
+        
+        if (audioSourcePref === 'latest') {
+          audioQuery = audioQuery.order('created_at', { ascending: false });
+        } else {
+          audioQuery = audioQuery.order('id', { ascending: true }); // pseudo random for 'best'
+        }
+        
+        const { data: approvedAudio } = await audioQuery;
+        if (!approvedAudio || approvedAudio.length === 0) {
+          dbLog(persona.id, 'warn', `Missing approved artist audio for strategy: "${strategy.name}"`);
+          continue;
+        }
+        
+        const selectedAudio = audioSourcePref === 'best' ? shuffleArray([...approvedAudio])[0] : approvedAudio[0];
+
+        dbLog(persona.id, 'info', `Selected background video and approved artist audio. Assembling Lyric Video...`);
+        try {
+           const outPath = path.join('/tmp', `lyric_video_${Date.now()}.mp4`);
+           const srtPath = path.join('/tmp', `lyrics_${Date.now()}.srt`);
+           
+           fs.writeFileSync(srtPath, selectedAudio.lyrics || '');
+           
+           await processVideo(bgVideo.url, outPath, selectedAudio.mp3_url, srtPath, '9:16', { startPercent: 0.1, endPercent: 0.1 }, 60);
+
+           const finalUrl = await uploadToR2(outPath, 'shorts');
+           const rootFolderId = await getOrCreateFolder(persona.name, null, persona.id);
+           const shortsFolderId = await getOrCreateFolder('Repurposed', rootFolderId, persona.id);
+
+           const title = strategy.settings.clickbaitTitle ? (strategy.name).toUpperCase() : strategy.name;
+           let description = strategy.settings.description || '';
+           if (strategy.settings.autoHashtags) {
+             const hashtagPool = ['#viral', '#shorts', '#aesthetic', '#music', '#trending', '#lyricvideo', '#lyrics'];
+             description += '\n\n' + shuffleArray([...hashtagPool]).slice(0, 5).join(' ');
+           }
+
+           await supabase.from('files').insert({
+             type: 'file',
+             name: `${strategy.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.mp4`,
+             persona_id: persona.id,
+             parent_id: shortsFolderId,
+             size: (fs.statSync(outPath).size / (1024 * 1024)).toFixed(2) + ' MB',
+             url: finalUrl,
+             metadata: {
+               type: 'youtube_shorts',
+               strategy_id: strategy.id,
+               aspectRatio: '9:16',
+               title: title,
+               description: description
+             }
+           });
+           
+           fs.unlinkSync(outPath);
+           if (fs.existsSync(srtPath)) fs.unlinkSync(srtPath);
+           
+           if (bgVideo && bgVideo.id && bgVideo.url) {
+               await deleteFromR2(bgVideo.url);
+               await supabase.from('files').delete().eq('id', bgVideo.id);
+               dbLog(persona.id, 'info', `Deleted original MP4 footage: ${bgVideo.url.split('/').pop()}`);
+           }
+           
+           dbLog(persona.id, 'success', `Generated YouTube Short lyric video for "${strategy.name}"!`);
+        } catch (e) {
+           dbLog(persona.id, 'error', `Failed to generate YouTube Short for "${strategy.name}": ${e.message}`);
         }
       } else if (strategy.settings && (strategy.settings.type === 'video' || strategy.settings.type === 'shorts' || strategy.settings.type === 'reels')) {
         const persona = strategy.personas;

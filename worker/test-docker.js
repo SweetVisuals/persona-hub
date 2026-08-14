@@ -1,0 +1,1 @@
+const { NodeSSH } = require('node-ssh'); const ssh = new NodeSSH(); (async () => { await ssh.connect({ host: '5.75.252.100', username: 'root', password: 'PniPqbCEW4Lk' }); const r = await ssh.execCommand('docker ps -a'); console.log('CONTAINERS:\\n', r.stdout); process.exit(0); })();

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Search, Activity, Loader2 } from 'lucide-react';
 
-export default function LogsPanel({ onClose }) {
+export default function LogsPanel({ onClose, inline = false }) {
   const [logs, setLogs] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [filterPersona, setFilterPersona] = useState('all');
@@ -59,32 +59,43 @@ export default function LogsPanel({ onClose }) {
     ? logs 
     : logs.filter(l => l.persona_id === filterPersona);
 
+  const containerStyle = inline ? {
+    width: '100%',
+    height: '100%',
+    background: 'transparent',
+    display: 'flex',
+    flexDirection: 'column'
+  } : {
+    width: 400, flexShrink: 0,
+    height: '100vh', position: 'sticky', top: 0,
+    background: 'var(--bg)', borderLeft: '1px solid var(--border)',
+    zIndex: 100, display: 'flex', flexDirection: 'column'
+  };
+
   return (
-    <div style={{
-      width: 400, flexShrink: 0,
-      height: '100vh', position: 'sticky', top: 0,
-      background: 'var(--bg)', borderLeft: '1px solid var(--border)',
-      zIndex: 100, display: 'flex', flexDirection: 'column'
-    }}>
+    <div style={containerStyle}>
       <div style={{
-        padding: '24px', borderBottom: '1px solid var(--border)',
+        padding: inline ? '16px 20px' : '24px', 
+        borderBottom: '1px solid var(--border)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Activity size={20} color="var(--text)" />
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Live Logs</h2>
+          <Activity size={inline ? 16 : 20} color="var(--text)" />
+          <h2 style={{ fontSize: inline ? 14 : 18, fontWeight: 700, color: 'var(--text)', textTransform: inline ? 'uppercase' : 'none', letterSpacing: inline ? 0.5 : 0 }}>Live Logs</h2>
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
-          <X size={24} />
-        </button>
+        {!inline && (
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
+            <X size={24} />
+          </button>
+        )}
       </div>
 
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg-2)' }}>
+      <div style={{ padding: inline ? '12px 20px' : '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg-2)' }}>
         <select 
           value={filterPersona} 
           onChange={(e) => setFilterPersona(e.target.value)}
           style={{ 
-            width: '100%', padding: '10px 16px', borderRadius: 'var(--radius-sm)',
+            width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-sm)',
             background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)',
             outline: 'none', fontSize: 13, fontWeight: 600
           }}
@@ -96,7 +107,7 @@ export default function LogsPanel({ onClose }) {
         </select>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', padding: inline ? '16px 20px' : '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40, color: 'var(--text-3)' }}>
             <Loader2 size={24} className="spin" />
@@ -110,7 +121,8 @@ export default function LogsPanel({ onClose }) {
             <div key={log.id} style={{ display: 'flex', gap: 12 }}>
               <div style={{ 
                 width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
-                background: log.level === 'error' ? 'var(--red)' : (log.personas?.color || 'var(--text-3)')
+                background: log.level === 'error' ? 'var(--red)' : (log.personas?.color || 'var(--text-3)'),
+                boxShadow: `0 0 8px ${log.level === 'error' ? 'rgba(239, 68, 68, 0.4)' : 'transparent'}`
               }} />
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

@@ -78,9 +78,44 @@ async function processAudioExtractions() {
       let lyrics = '';
 
       try {
-        if (job.source_type === 'youtube') {
-          // 1. Download YouTube to MP3
-          localAudioPath = await scrapeAudio(job.source_url);
+        let targetUrl = job.source_url;
+
+        // Get cookie if available for bypass (used for channel scrape and audio download)
+        let cookieString = null;
+        if (job.persona_id) {
+          const { data: accounts } = await supabase.from('social_accounts').select('session_cookie')
+            .eq('persona_id', job.persona_id).in('platform', ['youtube', 'google']).eq('status', 'active').limit(1);
+          if (accounts && accounts[0] && accounts[0].session_cookie && !accounts[0].session_cookie.trim().startsWith('{')) {
+            cookieString = accounts[0].session_cookie;
+          }
+        }
+
+        // Fallback: try to get ANY active youtube/google cookie from the DB
+        if (!cookieString) {
+          const { data: globalAccounts } = await supabase.from('social_accounts').select('session_cookie')
+            .in('platform', ['youtube', 'google']).eq('status', 'active').limit(1);
+          if (globalAccounts && globalAccounts[0] && globalAccounts[0].session_cookie && !globalAccounts[0].session_cookie.trim().startsWith('{')) {
+            cookieString = globalAccounts[0].session_cookie;
+          }
+        }
+
+        // Resolve artist channel to video URL if necessary
+        if (job.source_type === 'artist_latest' || job.source_type === 'artist_best') {
+          const { scrapeYouTubeArtistAudio } = require('./sourcing');
+          const strategy = job.source_type === 'artist_best' ? 'best' : 'latest';
+          console.log(`[AUDIO_WORKER] Resolving artist channel ${job.source_url} using ${strategy} strategy...`);
+          
+          const scraped = await scrapeYouTubeArtistAudio(job.source_url, strategy, 1, cookieString);
+          if (!scraped || scraped.length === 0) {
+            throw new Error(`No releases found on channel: ${job.source_url}`);
+          }
+          targetUrl = scraped[0].url;
+          console.log(`[AUDIO_WORKER] Resolved ${job.source_url} to video: ${scraped[0].title} (${targetUrl})`);
+        }
+
+        if (job.source_type === 'youtube' || job.source_type === 'artist_latest' || job.source_type === 'artist_best') {
+          // 1. Download YouTube to MP3 (passing session cookies)
+          localAudioPath = await scrapeAudio(targetUrl, cookieString);
           // 2. Upload MP3 to R2 so UI can play it
           finalMp3Url = await uploadToR2(localAudioPath, 'audio_studio');
         } else if (job.source_type === 'upload') {
