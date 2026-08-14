@@ -682,9 +682,23 @@ async function runGeneratorEngine() {
            const outPath = path.join('/tmp', `lyric_video_${Date.now()}.mp4`);
            const srtPath = path.join('/tmp', `lyrics_${Date.now()}.srt`);
            
-           fs.writeFileSync(srtPath, selectedAudio.lyrics || '');
+           // Check if there is a verified lyric template for this audio
+           const { data: verifiedTemplate } = await supabase.from('verified_lyrics')
+             .select('*')
+             .eq('audio_extraction_id', selectedAudio.id)
+             .eq('verified', true)
+             .maybeSingle();
+
+           let styleConfig = null;
+           if (verifiedTemplate) {
+             fs.writeFileSync(srtPath, verifiedTemplate.lyrics?.srt || selectedAudio.lyrics || '');
+             styleConfig = verifiedTemplate.style;
+             dbLog(persona.id, 'info', `Using Verified Lyric Template with custom styling.`);
+           } else {
+             fs.writeFileSync(srtPath, selectedAudio.lyrics || '');
+           }
            
-           await processVideo(bgVideo.url, outPath, selectedAudio.mp3_url, srtPath, '9:16', { startPercent: 0.1, endPercent: 0.1 }, 60);
+           await processVideo(bgVideo.url, outPath, selectedAudio.mp3_url, srtPath, '9:16', { startPercent: 0.1, endPercent: 0.1 }, 60, styleConfig);
 
            const finalUrl = await uploadToR2(outPath, 'shorts');
            const rootFolderId = await getOrCreateFolder(persona.name, null, persona.id);

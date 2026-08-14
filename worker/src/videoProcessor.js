@@ -11,7 +11,7 @@ function getVideoDuration(filePath) {
   });
 }
 
-async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16', trimOptions = null, maxDuration = 15) {
+async function processVideo(inputPath, outputPath, audioPath = null, srtPath = null, aspectRatio = '9:16', trimOptions = null, maxDuration = 15, styleConfig = null) {
   let duration = 0;
   if (trimOptions) {
     try {
@@ -64,9 +64,29 @@ async function processVideo(inputPath, outputPath, audioPath = null, srtPath = n
     ];
 
     if (srtPath && fs.existsSync(srtPath)) {
+      // Default style
+      let fontName = 'TikTok Sans';
+      let primaryColor = '&H00FFFFFF'; // default white in ASS format
+      
+      if (styleConfig) {
+        if (styleConfig.font) fontName = styleConfig.font;
+        if (styleConfig.color) {
+           // Convert #RRGGBB to ASS &H00BBGGRR format
+           const hex = styleConfig.color.replace('#', '');
+           if (hex.length === 6) {
+             const r = hex.substring(0, 2);
+             const g = hex.substring(2, 4);
+             const b = hex.substring(4, 6);
+             primaryColor = `&H00${b}${g}${r}`;
+           }
+        }
+        // For animations (word-by-word vs line-by-line), it often requires generating complex ASS files.
+        // For now, we apply standard subtitle filters and use ASS tags inside the SRT/ASS file.
+      }
+      
       filters.push({
         filter: 'subtitles',
-        options: `filename='${srtPath.replace(/\\/g, '/')}':force_style='FontName=TikTok Sans,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=60'`
+        options: `filename='${srtPath.replace(/\\/g, '/')}':force_style='FontName=${fontName},FontSize=20,PrimaryColour=${primaryColor},OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=60'`
       });
     }
 

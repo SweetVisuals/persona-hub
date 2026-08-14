@@ -28,14 +28,29 @@ export default function LyricsReview() {
     setLoading(false);
   };
 
-  const handleApprove = async (id, newLyrics) => {
+  const handleApprove = async (ext, newLyrics) => {
+    const style = ext.templateStyle || { font: 'Arial', animation: 'word-by-word' };
+    
     const { error } = await supabase
       .from('audio_extractions')
       .update({ status: 'approved', lyrics: newLyrics })
-      .eq('id', id);
+      .eq('id', ext.id);
       
     if (!error) {
-      setExtractions(prev => prev.map(e => e.id === id ? { ...e, status: 'approved', lyrics: newLyrics } : e));
+      // Save as Verified Lyric Template
+      await supabase.from('verified_lyrics').insert({
+        audio_extraction_id: ext.id,
+        persona_id: ext.persona_id || null,
+        title: ext.metadata?.title || ext.source_url || 'Unknown',
+        audio_url: ext.mp3_url || '',
+        lyrics: { srt: newLyrics },
+        style: style,
+        verified: true,
+        verified_at: new Date().toISOString()
+      });
+
+      setExtractions(prev => prev.map(e => e.id === ext.id ? { ...e, status: 'approved', lyrics: newLyrics } : e));
+      alert('Template Verified & Saved!');
     }
   };
 
@@ -60,6 +75,16 @@ export default function LyricsReview() {
   
   const handleLyricsChange = (id, newLyrics) => {
     setExtractions(prev => prev.map(e => e.id === id ? { ...e, lyrics: newLyrics } : e));
+  };
+
+  const handleStyleChange = (id, key, value) => {
+    setExtractions(prev => prev.map(e => {
+      if (e.id === id) {
+        const style = e.templateStyle || { font: 'Arial', animation: 'word-by-word', color: '#ffffff' };
+        return { ...e, templateStyle: { ...style, [key]: value } };
+      }
+      return e;
+    }));
   };
 
   const filteredExtractions = extractions.filter(e => {
@@ -178,26 +203,81 @@ export default function LyricsReview() {
                 </div>
               )}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>
-                  <Edit3 size={14} /> Edit Lyrics (SRT)
-                </label>
-                <textarea
-                  value={ext.lyrics || ''}
-                  onChange={(e) => handleLyricsChange(ext.id, e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    background: 'var(--bg-3)',
-                    border: '1px solid var(--border)',
-                    padding: 16,
-                    borderRadius: 'var(--radius)',
-                    color: 'var(--text)',
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    resize: 'vertical'
-                  }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 8 }}>
+                    <Edit3 size={14} /> Edit Lyrics (SRT)
+                  </label>
+                  <textarea
+                    value={ext.lyrics || ''}
+                    onChange={(e) => handleLyricsChange(ext.id, e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 200,
+                      background: 'var(--bg-3)',
+                      border: '1px solid var(--border)',
+                      padding: 16,
+                      borderRadius: 'var(--radius)',
+                      color: 'var(--text)',
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+                
+                {/* Template Settings */}
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 16 }}>
+                    Template Style
+                  </label>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Font Family</div>
+                      <select 
+                        value={ext.templateStyle?.font || 'Arial'} 
+                        onChange={e => handleStyleChange(ext.id, 'font', e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                      >
+                        <option value="Arial">Arial</option>
+                        <option value="Impact">Impact</option>
+                        <option value="Space Grotesk">Space Grotesk</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Animation</div>
+                      <select 
+                        value={ext.templateStyle?.animation || 'word-by-word'} 
+                        onChange={e => handleStyleChange(ext.id, 'animation', e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                      >
+                        <option value="word-by-word">Word-by-word Reveal</option>
+                        <option value="line-by-line">Line-by-line</option>
+                        <option value="karaoke">Karaoke Highlight</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Primary Color</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {['#ffffff', '#8ACE00', '#FF3366', '#00C2FF', '#FFB800'].map(c => (
+                          <button
+                            key={c}
+                            onClick={() => handleStyleChange(ext.id, 'color', c)}
+                            style={{ 
+                              width: 24, height: 24, borderRadius: '50%', background: c, 
+                              border: ext.templateStyle?.color === c ? '2px solid white' : 'none',
+                              cursor: 'pointer' 
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
@@ -259,7 +339,7 @@ export default function LyricsReview() {
                   </button>
                 )}
                 <button
-                  onClick={() => handleApprove(ext.id, ext.lyrics)}
+                  onClick={() => handleApprove(ext, ext.lyrics)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'var(--green)',
@@ -272,7 +352,7 @@ export default function LyricsReview() {
                     cursor: 'pointer'
                   }}
                 >
-                  <CheckCircle size={16} /> Approve
+                  <CheckCircle size={16} /> Verify & Save Template
                 </button>
               </div>
             </Card>
