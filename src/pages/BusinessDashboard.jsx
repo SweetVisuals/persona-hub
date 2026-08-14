@@ -269,6 +269,7 @@ export default function BusinessDashboard() {
                 </tbody>
               </table>
             </Card>
+          </div>
         </div>
         
         {/* Live Logs - Full Width at Bottom */}

@@ -12,9 +12,11 @@ export default function LyricsReview() {
   const [viewMode, setViewMode] = useState('review'); // 'review' or 'generator'
   const [selectedAudioUrl, setSelectedAudioUrl] = useState('');
   const [selectedLyrics, setSelectedLyrics] = useState('');
+  const [templates, setTemplates] = useState([]);
   
   useEffect(() => {
     fetchExtractions();
+    fetchTemplates();
   }, []);
 
   const fetchExtractions = async () => {
@@ -28,7 +30,18 @@ export default function LyricsReview() {
     setLoading(false);
   };
 
+  const fetchTemplates = async () => {
+    const { data } = await supabase
+      .from('verified_lyrics')
+      .select('*')
+      .order('verified_at', { ascending: false });
+    if (data) setTemplates(data);
+  };
+
   const handleApprove = async (ext, newLyrics) => {
+    const songName = window.prompt("Enter a Song Name for this template:", ext.metadata?.title || ext.source_url || 'Unknown');
+    if (!songName) return; // Cancelled
+    
     const style = ext.templateStyle || { font: 'Arial', animation: 'word-by-word' };
     
     const { error } = await supabase
@@ -41,7 +54,7 @@ export default function LyricsReview() {
       await supabase.from('verified_lyrics').insert({
         audio_extraction_id: ext.id,
         persona_id: ext.persona_id || null,
-        title: ext.metadata?.title || ext.source_url || 'Unknown',
+        title: songName,
         audio_url: ext.mp3_url || '',
         lyrics: { srt: newLyrics },
         style: style,
@@ -49,7 +62,8 @@ export default function LyricsReview() {
         verified_at: new Date().toISOString()
       });
 
-      setExtractions(prev => prev.map(e => e.id === ext.id ? { ...e, status: 'approved', lyrics: newLyrics } : e));
+      setExtractions(prev => prev.map(e => e.id === ext.id ? { ...e, status: 'approved', lyrics: newLyrics, metadata: { ...e.metadata, title: songName } } : e));
+      fetchTemplates(); // Refresh templates
       alert('Template Verified & Saved!');
     }
   };
@@ -118,6 +132,21 @@ export default function LyricsReview() {
           Review Transcriptions
         </button>
         <button
+          onClick={() => setViewMode('templates')}
+          style={{
+            background: viewMode === 'templates' ? 'var(--text)' : 'transparent',
+            color: viewMode === 'templates' ? 'var(--bg)' : 'var(--text-2)',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: 'var(--radius)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          Saved Templates
+        </button>
+        <button
           onClick={() => {
             setSelectedAudioUrl('');
             setSelectedLyrics('');
@@ -140,28 +169,177 @@ export default function LyricsReview() {
 
       {viewMode === 'generator' ? (
         <BratLyricGenerator initialAudioUrl={selectedAudioUrl} initialLyrics={selectedLyrics} />
+      ) : viewMode === 'templates' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Saved Templates</h2>
+          {templates.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-3)' }}>
+              No templates saved yet. Verify a transcription first!
+            </div>
+          ) : (
+            templates.map(tmpl => (
+              <Card key={tmpl.id} className="glass" style={{ padding: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{tmpl.title}</h3>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Verified: {new Date(tmpl.verified_at).toLocaleString()}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedAudioUrl(tmpl.audio_url);
+                      setSelectedLyrics(tmpl.lyrics?.srt || '');
+                      setViewMode('generator');
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'var(--accent)',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Music size={16} /> Preview Overlay
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', gap: 24 }}>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ background: 'var(--bg-3)', padding: 16, borderRadius: 'var(--radius)', height: 200, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', color: 'var(--text)' }}>
+                      {tmpl.lyrics?.srt || 'No lyrics found.'}
+                    </div>
+                  </div>
+                  
+                  <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 16 }}>
+                      Template Style
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Font Family</div>
+                        <select 
+                          value={tmpl.style?.font || 'Arial'} 
+                          onChange={async (e) => {
+                            const newStyle = { ...tmpl.style, font: e.target.value };
+                            await supabase.from('verified_lyrics').update({ style: newStyle }).eq('id', tmpl.id);
+                            fetchTemplates();
+                          }}
+                          style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                        >
+                          <option value="Arial">Arial</option>
+                          <option value="Impact">Impact</option>
+                          <option value="Space Grotesk">Space Grotesk</option>
+                          <option value="Times New Roman">Times New Roman</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Animation</div>
+                        <select 
+                          value={tmpl.style?.animation || 'word-by-word'} 
+                          onChange={async (e) => {
+                            const newStyle = { ...tmpl.style, animation: e.target.value };
+                            await supabase.from('verified_lyrics').update({ style: newStyle }).eq('id', tmpl.id);
+                            fetchTemplates();
+                          }}
+                          style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                        >
+                          <option value="word-by-word">Word-by-word Reveal</option>
+                          <option value="line-by-line">Line-by-line</option>
+                          <option value="karaoke">Karaoke Highlight</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Primary Color</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {['#ffffff', '#8ACE00', '#FF3366', '#00C2FF', '#FFB800'].map(c => (
+                            <button
+                              key={c}
+                              onClick={async () => {
+                                const newStyle = { ...tmpl.style, color: c };
+                                await supabase.from('verified_lyrics').update({ style: newStyle }).eq('id', tmpl.id);
+                                fetchTemplates();
+                              }}
+                              style={{ 
+                                width: 24, height: 24, borderRadius: '50%', background: c, 
+                                border: tmpl.style?.color === c ? '2px solid white' : 'none',
+                                cursor: 'pointer' 
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={async () => {
+                      if(window.confirm('Delete this template?')) {
+                        await supabase.from('verified_lyrics').delete().eq('id', tmpl.id);
+                        fetchTemplates();
+                      }
+                    }}
+                    style={{ background: 'transparent', border: '1px solid var(--red)', color: 'var(--red)', padding: '6px 12px', borderRadius: 'var(--radius)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    Delete Template
+                  </button>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
       ) : (
         <>
-          {/* Status Tabs */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
-            {['All', 'Pending Review', 'Approved', 'Rejected'].map(t => (
-              <button
-                key={t}
-                onClick={() => setFilter(t)}
-                style={{
-                  background: filter === t ? 'var(--bg-3)' : 'transparent',
-                  color: filter === t ? 'var(--text)' : 'var(--text-3)',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: 'var(--radius)',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                {t}
-              </button>
-            ))}
+          {/* Status Tabs & Manual Upload Button */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 16, justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {['All', 'Pending Review', 'Approved', 'Rejected'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setFilter(t)}
+                  style={{
+                    background: filter === t ? 'var(--bg-3)' : 'transparent',
+                    color: filter === t ? 'var(--text)' : 'var(--text-3)',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const url = window.prompt("Enter public MP3 URL to create a manual transcription task:");
+                if (url) {
+                  supabase.from('audio_extractions').insert({
+                    source_url: url,
+                    mp3_url: url,
+                    status: 'pending_review',
+                    metadata: { title: 'Manual Upload' }
+                  }).then(() => fetchExtractions());
+                }
+              }}
+              style={{
+                background: 'var(--accent)',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 'var(--radius)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              + Create Manual Entry
+            </button>
           </div>
 
       {loading ? (
