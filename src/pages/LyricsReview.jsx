@@ -303,31 +303,31 @@ export default function LyricsReview() {
                     <Music size={16} /> Generate Video Overlay
                   </button>
                 )}
-                {ext.status === 'rejected' ? (
-                  <button
-                    onClick={() => handleDelete(ext.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'var(--red)',
-                      border: 'none',
-                      color: '#fff',
-                      padding: '8px 16px',
-                      borderRadius: 'var(--radius)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                ) : (
+                <button
+                  onClick={() => handleDelete(ext.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent',
+                    border: '1px solid var(--red)',
+                    color: 'var(--red)',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={16} /> Delete
+                </button>
+
+                {ext.status !== 'rejected' && (
                   <button
                     onClick={() => handleReject(ext.id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'transparent',
-                      border: '1px solid var(--red)',
-                      color: 'var(--red)',
+                      background: 'var(--bg-3)',
+                      border: 'none',
+                      color: 'var(--text-2)',
                       padding: '8px 16px',
                       borderRadius: 'var(--radius)',
                       fontSize: 13,
