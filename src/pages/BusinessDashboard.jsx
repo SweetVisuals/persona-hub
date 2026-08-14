@@ -2,12 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBusiness } from '../components/BusinessContext';
 import { supabase } from '../lib/supabase';
-import PlatformBadge from '../components/PlatformBadge';
-import Card from '../components/Card';
 import LogsPanel from '../components/LogsPanel';
 import { 
-  Plus, Search, Edit2, Eye, Trash2, ChevronUp, ChevronDown, 
-  Server, Activity, Clock, FileText, CheckCircle2, Play, Pause
+  Plus, Search, Server, Activity, Clock, FileText, CheckCircle2, AlertTriangle 
 } from 'lucide-react';
 
 export default function BusinessDashboard() {
@@ -19,7 +16,7 @@ export default function BusinessDashboard() {
   const [strategiesCount, setStrategiesCount] = useState({});
   const [postsCount, setPostsCount] = useState({});
   const [liveTasks, setLiveTasks] = useState([]);
-  const [stats, setStats] = useState({ generatedToday: 0 });
+  const [stats, setStats] = useState({ generatedToday: 0, needsReview: [] });
 
   useEffect(() => {
     if (!personas || personas.length === 0) return;
@@ -45,34 +42,27 @@ export default function BusinessDashboard() {
         setPostsCount(counts);
       }
       
-      // Fetch live tasks for feed
       const { data: tasksData } = await supabase.from('automation_tasks')
         .select('*, personas(name, handle, avatar, color)')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
       if (tasksData) setLiveTasks(tasksData);
       
-      // Mock generated today count
-      setStats({ generatedToday: Math.floor(Math.random() * 50) + 12 });
+      const { data: accs } = await supabase.from('social_accounts').select('id, persona_id, platform, username, status').in('status', ['error', 'captcha_required', 'pending_login']);
+      
+      setStats({ 
+        generatedToday: Math.floor(Math.random() * 50) + 12,
+        needsReview: accs || []
+      });
     };
 
     fetchCounts();
-    
-    // Subscribe to realtime updates for automation_tasks
     const sub = supabase.channel('dashboard_tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_tasks' }, () => {
-        fetchCounts();
-      }).subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_tasks' }, () => fetchCounts())
+      .subscribe();
       
     return () => supabase.removeChannel(sub);
   }, [personas]);
-
-  const handleSort = (key) => {
-    setSortConfig(current => ({
-      key,
-      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
 
   const toggleStatus = async (e, personaId, currentStatus) => {
     e.stopPropagation();
@@ -95,172 +85,103 @@ export default function BusinessDashboard() {
   }, [personas, searchTerm, sortConfig]);
 
   if (loading || !business) {
-    return <div style={{ padding: 32, color: 'var(--text-2)' }}>Loading Mission Control...</div>;
+    return <div style={{ padding: 16, color: 'var(--text-3)', fontSize: 12 }}>INITIALIZING MISSION CONTROL...</div>;
   }
 
   const queuedPosts = Object.values(postsCount).reduce((sum, count) => sum + count, 0);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', height: '100%', overflow: 'hidden' }}>
-      <div className="custom-scroll" style={{ padding: 32, overflowY: 'auto', background: 'var(--bg)' }}>
-        
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>Mission Control</h1>
-            <p style={{ color: 'var(--text-2)', fontSize: 14, margin: 0 }}>Autonomous Content Engine Monitoring Dashboard</p>
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button style={{ background: 'var(--bg-3)', color: 'var(--text)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border)' }}>
-              <Server size={18} /> Groq API: Online
-            </button>
-            <button onClick={() => navigate('personas/new')} style={{ background: 'var(--text)', color: 'var(--bg)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(255, 255, 255, 0.1)' }}>
-              <Plus size={18} /> New Persona
-            </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: 16, gap: 16, background: 'var(--bg)' }}>
+      
+      {/* Top Bar: Ultra Compact */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mission Control</h1>
+          <div style={{ display: 'flex', gap: 12, fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--green)' }}><Activity size={12}/> Engine Active</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12}/> {queuedPosts} Queued</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12}/> {stats.generatedToday} Gen Today</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={12}/> {personas.filter(p => p.status === 'active').length} Personas</span>
           </div>
         </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={{ background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Server size={12} /> API: OK
+          </button>
+          <button onClick={() => navigate('personas/new')} style={{ background: 'var(--text)', color: 'var(--bg)', border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <Plus size={12} /> New Persona
+          </button>
+        </div>
+      </div>
 
-        {/* System Health */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
-          <Card className="glass" style={{ padding: '24px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--green)', marginBottom: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Activity size={16} /></div>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Engine Status</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--green)' }}>ACTIVE</div>
-          </Card>
-          
-          <Card className="glass" style={{ padding: '24px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-3)', marginBottom: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock size={16} /></div>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Global Queue</span>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{queuedPosts}</div>
-          </Card>
-          
-          <Card className="glass" style={{ padding: '24px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-3)', marginBottom: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle2 size={16} /></div>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Generated Today</span>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{stats.generatedToday}</div>
-          </Card>
-          
-          <Card className="glass" style={{ padding: '24px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-3)', marginBottom: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={16} /></div>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Active Personas</span>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{personas.filter(p => p.status === 'active').length}</div>
-          </Card>
-        </div>
+      {/* Main Grid: 3 Columns (Personas/Action Center | Live Feed | Logs) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr 3fr', gap: 16, flex: 1, minHeight: 0 }}>
         
-        {/* Action Centre */}
-        {(() => {
-          const needsReviewAccounts = stats.activeAccountsData?.filter(a => ['captcha_required', 'error', 'pending_login'].includes(a.status)) || [];
-          if (needsReviewAccounts.length === 0) return null;
+        {/* Column 1: Personas & Action Center */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
           
-          return (
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: 'var(--amber)' }}>Action Centre: Needs Review</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-                {needsReviewAccounts.map(acc => {
+          {/* Action Center - Only visible if issues exist */}
+          {stats.needsReview.length > 0 && (
+            <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '8px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.2)', fontSize: 11, fontWeight: 700, color: 'var(--amber)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={12} /> Action Center
+              </div>
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', maxHeight: 150 }}>
+                {stats.needsReview.map(acc => {
                   const p = personas.find(p => p.id === acc.persona_id);
                   return (
-                    <Card key={acc.id} className="glass" style={{ padding: 16, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: (p?.color || '#555') + '22', color: p?.color || '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {p?.avatar || '👤'}
-                        </div>
+                    <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 12 }}>{p?.avatar || '👤'}</div>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p?.name || 'Unknown'}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>@{acc.username}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600 }}>@{acc.username}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-3)' }}>{acc.platform} auth failed</div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 12 }}>
-                        {acc.platform} authentication issue. Action required to resume posting.
-                      </div>
-                      <button style={{ width: '100%', background: 'var(--amber)', color: '#000', padding: '8px 0', borderRadius: 'var(--radius-sm)', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 13 }}>
-                        Resolve Issue
-                      </button>
-                    </Card>
+                      <button style={{ background: 'var(--amber)', color: '#000', border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Fix</button>
+                    </div>
                   );
                 })}
               </div>
             </div>
-          );
-        })()}
-
-        {/* Live Feed, Matrix */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          
-          {/* Live Feed */}
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Live Generation Feed</h2>
-            <Card className="glass" style={{ padding: 0, overflow: 'hidden' }}>
-              {liveTasks.length === 0 ? (
-                <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>No tasks in queue.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {liveTasks.map((task, i) => (
-                    <div key={task.id} style={{ padding: '16px 20px', borderBottom: i < liveTasks.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: task.personas?.color + '22' || 'var(--bg-3)', color: task.personas?.color || 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                        {task.personas?.avatar || '👤'}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 2 }}>@{task.personas?.handle || 'persona'} • {task.type}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{task.content.substring(0, 50)}{task.content.length > 50 ? '...' : ''}</div>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: task.status === 'completed' ? 'var(--green)' : 'var(--amber)', background: task.status === 'completed' ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>
-                        {task.status}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
+          )}
 
           {/* Persona Matrix */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700 }}>Persona Health Matrix</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', padding: '6px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                <Search size={14} color="var(--text-3)" />
-                <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text)', outline: 'none', width: 120, fontSize: 12 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase' }}>Personas</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Search size={12} color="var(--text-3)" />
+                <input type="text" placeholder="Filter..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text)', outline: 'none', width: 80, fontSize: 11 }} />
               </div>
             </div>
-            
-            <Card className="glass" style={{ padding: 0, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: 'var(--bg-2)' }}>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Persona</th>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Strategies</th>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Status</th>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Identity</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Strats</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedPersonas.map((persona) => {
-                    const isActive = persona.status === 'active';
+                  {filteredAndSortedPersonas.map((p) => {
+                    const isActive = p.status === 'active';
                     return (
-                      <tr key={persona.id} onClick={() => navigate(`p/${persona.id}`)} className="table-row-interactive" style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-                        <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: persona.color + '22' || 'var(--bg-4)', color: persona.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-                              {persona.avatar || '👤'}
-                            </div>
+                      <tr key={p.id} onClick={() => navigate(`p/${p.id}`)} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'var(--bg)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-2)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg)'}>
+                        <td style={{ padding: '8px 12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontSize: 14 }}>{p.avatar || '👤'}</div>
                             <div>
-                              <div style={{ fontWeight: 600 }}>{persona.name}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>@{persona.handle?.replace(/^@/, '')}</div>
+                              <div style={{ fontWeight: 600 }}>{p.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-3)' }}>@{p.handle?.replace(/^@/, '')}</div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '16px', fontWeight: 600 }}>{strategiesCount[persona.id] || 0}</td>
-                        <td style={{ padding: '16px' }}>
-                          <button onClick={(e) => toggleStatus(e, persona.id, persona.status)} style={{ background: isActive ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-4)', color: isActive ? 'var(--green)' : 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: '12px', fontSize: 11, fontWeight: 700, border: `1px solid ${isActive ? 'rgba(34, 197, 94, 0.2)' : 'var(--border)'}` }}>
-                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-                            {isActive ? 'Active' : 'Paused'}
+                        <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{strategiesCount[p.id] || 0}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                          <button onClick={(e) => toggleStatus(e, p.id, p.status)} style={{ background: isActive ? 'rgba(34,197,94,0.1)' : 'var(--bg-3)', color: isActive ? 'var(--green)' : 'var(--text-3)', border: 'none', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
+                            {isActive ? 'ON' : 'OFF'}
                           </button>
                         </td>
                       </tr>
@@ -268,17 +189,48 @@ export default function BusinessDashboard() {
                   })}
                 </tbody>
               </table>
-            </Card>
+            </div>
           </div>
         </div>
-        
-        {/* Live Logs - Full Width at Bottom */}
-        <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', height: '400px' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Live System Logs</h2>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+
+        {/* Column 2: Live Tasks Feed */}
+        <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ padding: '8px 12px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase' }}>
+            Task Pipeline
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {liveTasks.length === 0 ? (
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-3)', fontSize: 11 }}>No tasks active</div>
+            ) : (
+              liveTasks.map((task, i) => (
+                <div key={task.id} style={{ padding: '8px 12px', borderBottom: i < liveTasks.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 12 }}>
+                  <div style={{ fontSize: 14, paddingTop: 2 }}>{task.personas?.avatar || '⚡'}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase' }}>{task.type}</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: task.status === 'completed' ? 'var(--green)' : 'var(--amber)', textTransform: 'uppercase' }}>{task.status}</span>
+                    </div>
+                    <div style={{ fontWeight: 500, lineHeight: 1.3, color: 'var(--text)' }}>
+                      {task.content?.substring(0, 60)}{task.content?.length > 60 ? '...' : ''}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Column 3: Live System Logs */}
+        <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ padding: '8px 12px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase' }}>
+            System Terminal
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0a0a0a', minHeight: 0 }}>
+            {/* We override the inline padding and font size inside LogsPanel via CSS or just let it fill */}
             <LogsPanel inline={true} />
           </div>
         </div>
+        
       </div>
     </div>
   );

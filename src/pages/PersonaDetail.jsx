@@ -57,83 +57,79 @@ function OverviewTab({ personaId }) {
     }
   };
 
-  if (loading) return <div style={{ color: 'var(--text-3)' }}>Loading overview...</div>;
+  if (loading) return <div style={{ color: 'var(--text-3)', fontSize: 12, padding: 16 }}>LOADING PERSONA METRICS...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      {/* KPI Row: Ultra Compact */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
         {[
           { label: 'Total Reach', value: stats.reach.toLocaleString() },
           { label: 'Linked Accounts', value: stats.accounts },
           { label: 'Active Strategies', value: stats.strategies },
           { label: 'Content Files', value: stats.files }
         ].map((s, i) => (
-          <Card key={i} className="glass" style={{ padding: '24px 20px', transition: 'transform 0.2s', cursor: 'default' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-            <div style={{ color: 'var(--text-3)', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '12px' }}>
+          <div key={i} style={{ padding: '12px 16px', background: 'var(--bg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ color: 'var(--text-3)', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {s.label}
             </div>
-            <div style={{ fontSize: '32px', fontWeight: 800, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-1px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'monospace' }}>
               {s.value}
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '16px' }}>
         {/* Recent Activity */}
-        <div>
-          <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Recent Activity</h3>
-          <Card className="glass" style={{ padding: '0', overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 12px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-2)' }}>Recent Activity</div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             {activities.length === 0 ? (
-              <div style={{ padding: '32px', color: 'var(--text-3)', textAlign: 'center', fontSize: 14 }}>No recent activity.</div>
+              <div style={{ padding: '16px', color: 'var(--text-3)', textAlign: 'center', fontSize: 11 }}>No recent activity.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {activities.map((task, i) => (
-                  <div key={task.id} className="table-row-interactive" style={{
-                    padding: '20px 24px',
+                  <div key={task.id} style={{
+                    padding: '8px 12px',
                     borderBottom: i < activities.length - 1 ? '1px solid var(--border)' : 'none',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    transition: 'background 0.2s', cursor: 'pointer'
-                  }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Activity size={18} color="var(--text-2)" />
-                      </div>
+                    fontSize: 12
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Activity size={14} color="var(--text-3)" />
                       <div>
-                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{task.type || 'Automation Task'}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>{new Date(task.created_at).toLocaleString()}</div>
+                        <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{task.type || 'Automation Task'}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-3)' }}>{new Date(task.created_at).toLocaleString()}</div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <StatusBadge status={task.status} />
+                    <div style={{ fontSize: 10, fontWeight: 700, color: task.status === 'completed' ? 'var(--green)' : 'var(--text-2)', textTransform: 'uppercase' }}>
+                      {task.status}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         </div>
 
         {/* Needs Review Widget */}
-        <div>
-          <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--amber)' }}>Needs Review</h3>
-          <Card className="glass" style={{ padding: '24px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {stats.needsReviewAccounts && stats.needsReviewAccounts.length > 0 ? (
-                stats.needsReviewAccounts.map(acc => (
-                  <div key={acc.id} style={{ background: 'var(--bg-2)', padding: '16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} className="review-card">
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', marginBottom: 8 }}>Authentication Issue</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.4, marginBottom: 12 }}>{acc.platform} connection for @{acc.username || personaId.substring(0, 5)} needs to be re-authenticated.</div>
-                    <button onClick={() => handleReconnect(acc)} style={{ width: '100%', fontSize: 13, background: 'var(--amber)', color: 'var(--bg)', padding: '8px 0', borderRadius: 'var(--radius-sm)', fontWeight: 700, border: 'none', cursor: 'pointer' }}>Reconnect Account</button>
-                  </div>
-                ))
-              ) : (
-                <div style={{ color: 'var(--text-3)', fontSize: 14, textAlign: 'center', padding: '16px' }}>No immediate actions required.</div>
-              )}
-            </div>
-          </Card>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 12px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--amber)' }}>Action Center</div>
+          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {stats.needsReviewAccounts && stats.needsReviewAccounts.length > 0 ? (
+              stats.needsReviewAccounts.map(acc => (
+                <div key={acc.id} style={{ background: 'rgba(245,158,11,0.05)', padding: '12px', borderRadius: 4, border: '1px solid rgba(245,158,11,0.2)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginBottom: 4 }}>Auth Required</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.4, marginBottom: 8 }}>{acc.platform} connection for @{acc.username} needs re-auth.</div>
+                  <button onClick={() => handleReconnect(acc)} style={{ width: '100%', fontSize: 11, background: 'var(--amber)', color: '#000', padding: '6px 0', borderRadius: 4, fontWeight: 700, border: 'none', cursor: 'pointer' }}>Fix Connection</button>
+                </div>
+              ))
+            ) : (
+              <div style={{ color: 'var(--text-3)', fontSize: 11, textAlign: 'center', padding: '16px 0' }}>All systems nominal.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -181,40 +177,43 @@ function AccountsTab({ personaId }) {
   if (loading) return <div style={{ color: 'var(--text-3)' }}>Loading accounts...</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-      {accounts.map(acc => (
-        <Card key={acc.id} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <PlatformBadge platform={acc.platform} size="lg" />
-            <StatusBadge status={acc.status || 'active'} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 500 }}>@{acc.username || acc.handle || 'unknown'}</div>
-            <div style={{ fontSize: '14px', color: 'var(--text-3)', marginTop: '4px' }}>
-              {(acc.follower_count || 0).toLocaleString()} followers
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+        {accounts.map(acc => (
+          <div key={acc.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 16px', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <PlatformBadge platform={acc.platform} size="sm" />
+              <div style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: acc.status === 'active' ? 'rgba(34,197,94,0.1)' : 'var(--bg-3)', color: acc.status === 'active' ? 'var(--green)' : 'var(--text-3)', textTransform: 'uppercase' }}>
+                {acc.status}
+              </div>
             </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>@{acc.username || acc.handle || 'unknown'}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '2px' }}>
+                {(acc.follower_count || 0).toLocaleString()} followers
+              </div>
+            </div>
+            <button style={{
+              background: 'transparent', border: 'none', color: 'var(--red)',
+              padding: '0', alignSelf: 'flex-end', cursor: 'pointer',
+              fontSize: '11px', fontWeight: 600
+            }}>
+              DELETE
+            </button>
           </div>
-          <button style={{
-            background: 'transparent', border: '1px solid var(--border)', color: 'var(--red)',
-            padding: '8px', borderRadius: 'var(--radius-sm)', alignSelf: 'flex-start',
-            fontSize: '12px'
-          }}>
-            Delete
-          </button>
-        </Card>
-      ))}
+        ))}
 
-      <div 
-        onClick={() => setIsModalOpen(true)}
-        style={{
-        border: '1px dashed var(--border-light)', borderRadius: 'var(--radius)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '24px', gap: '12px', color: 'var(--text-3)', cursor: 'pointer'
-      }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Plus size={20} color="var(--text)" />
+        <div 
+          onClick={() => setIsModalOpen(true)}
+          style={{
+          border: '1px dashed var(--border)', borderRadius: 6,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px', gap: '12px', color: 'var(--text-3)', cursor: 'pointer',
+          background: 'rgba(255,255,255,0.02)'
+        }}>
+          <Plus size={16} color="var(--text-3)" />
+          <span style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' }}>Link Account</span>
         </div>
-        <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Add Account</span>
       </div>
 
       {isModalOpen && (
